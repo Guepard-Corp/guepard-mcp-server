@@ -207,7 +207,21 @@ class GuepardDeploymentServer:
                         "required": ["deployment_id", "clone_id", "snapshot_comment"]
                     }
                 ),
+                types.Tool(
+                    name="checkout_branch",
+                    description="Checkout to a specific branch",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "deployment_id": {"type": "string"},
+                            "clone_id": {"type": "string"},
+                            
+                        },
+                        "required": ["deployment_id", "clone_id"]
+                    }
+                )
             ]
+
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> List[types.TextContent]:
@@ -226,13 +240,27 @@ class GuepardDeploymentServer:
                     result = await self._start_compute(**arguments)
                 elif name == "stop_compute":
                     result = await self._stop_compute(**arguments)
+                elif name == "checkout_branch":
+                    result = await self._checkout_branch(**arguments)
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
                 return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
             except Exception as e:
                 logger.error(f"Tool '{name}' failed: {str(e)}")
                 return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
-
+    async def _checkout_branch(self, **kwargs) -> dict:
+        deployment_id = kwargs["deployment_id"]
+        clone_id = kwargs["clone_id"]
+        url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/checkout"
+        async with self.session.post(url, headers=self._get_auth_headers()) as response:
+            text = await response.text()
+            if response.status >= 400:
+                try:
+                    error_msg = json.loads(text).get('message', text)
+                except json.JSONDecodeError:
+                    error_msg = text
+                raise Exception(f"API Error {response.status}: {error_msg}")
+            return json.loads(text)
     async def _get_deployments(self, deployment_id=None, status=None, limit=100) -> Union[Dict, List[Dict]]:
         endpoint = f"/deploy/{deployment_id}" if deployment_id else "/deploy"
         params = {"status": status, "limit": max(1, min(limit, 1000))} if status else {"limit": max(1, min(limit, 1000))}
