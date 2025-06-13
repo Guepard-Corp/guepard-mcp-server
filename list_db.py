@@ -1,4 +1,7 @@
-
+#!/usr/bin/env python3
+"""
+Guepard Deployment API MCP Server
+"""
 
 import os
 import json
@@ -112,27 +115,68 @@ class GuepardDeploymentServer:
                     }
                 ),
                 types.Tool(
-                    name="create_deployment",
-                    description="Create a new database deployment",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "deployment_type": {"type": "string", "enum": ["REPOSITORY", "F2"]},
-                            "database_provider": {"type": "string", "enum": ["PostgreSQL", "mysql", "mongodb"]},
-                            "database_version": {"type": "string"},
-                            "data_center": {"type": "string"},
-                            "region": {"type": "string"},
-                            "instance_type": {"type": "string", "enum": ["free", "small", "medium", "large", "xlarge"]},
-                            "repository_name": {"type": "string"},
-                            "database_username": {"type": "string"},
-                            "performance_profile_id": {"type": "string"}
-                        },
-                        "required": ["deployment_type", "database_provider", "database_version", "data_center", "region", "instance_type", "repository_name", "database_username"]
-                    }
-                ),
+    name="create_deployment",
+    description="Create a new database deployment",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "deployment_type": {
+                "type": "string",
+                "enum": ["REPOSITORY", "F2"],
+                "default": "REPOSITORY"
+            },
+            "database_provider": {
+                "type": "string",
+                "enum": ["PostgreSQL", "mysql", "mongodb"],
+                "default": "PostgreSQL"
+            },
+            "database_version": {
+                "type": "string",
+                "default": "16"
+            },
+            "data_center": {
+                "type": "string",
+                "default": "us-west-aws"
+            },
+            "region": {
+                "type": "string",
+                "default": "us"
+            },
+            "instance_type": {
+                "type": "string",
+                "enum": ["free", "small", "medium", "large", "xlarge"],
+                "default": "free"
+            },
+            "repository_name": {
+                "type": "string",
+                "default": "Guepard-API-Postgres"
+            },
+            "database_username": {
+                "type": "string",
+                "default": "postgres"
+            },
+            "performance_profile_id": {
+                "type": "string",
+                "default": "f8bdcb24-d9f1-4cc8-8e65-0f7edff74ada"
+            }
+        },
+        "required": [
+            "deployment_type",
+            "database_provider",
+            "database_version",
+            "data_center",
+            "region",
+            "instance_type",
+            "repository_name",
+            "database_username",
+            "performance_profile_id"
+        ]
+    }
+)
+,
                 types.Tool(
                     name="create_snapshot",
-                    description="Create a snapshot for a specific deployment clone",
+                    description="Create a snapshot for a specific deployment",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -193,7 +237,18 @@ class GuepardDeploymentServer:
 
     async def _create_deployment(self, **kwargs) -> dict:
         url = f"{self.api_base_url}/deploy"
-        payload = {k: v for k, v in kwargs.items() if v is not None}
+        defaults = {
+        "database_provider": "PostgreSQL",
+        "database_version": "16",
+        "region": "us",
+        "data_center": "us-west-aws",
+        "instance_type": "free",
+        "repository_name": "Guepard-API-Postgres",
+        "database_username": "postgres",
+        "deployment_type": "REPOSITORY",
+        "performance_profile_id": "f8bdcb24-d9f1-4cc8-8e65-0f7edff74ada"
+    }
+        payload = {k: kwargs.get(k, v) for k, v in defaults.items()}
         async with self.session.post(url, headers=self._get_auth_headers(), json=payload) as response:
             text = await response.text()
             if response.status >= 400:
