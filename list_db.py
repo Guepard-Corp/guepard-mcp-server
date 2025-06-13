@@ -231,7 +231,7 @@ class GuepardDeploymentServer:
             return await response.json()
     async def _start_compute(self, deployment_id: str, clone_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/start"
-        async with self.session.post(url, headers=self._get_auth_headers()) as response:
+        async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
             if response.status >= 400:
                 try:
