@@ -103,8 +103,7 @@ class GuepardDeploymentServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "deployment_id": {"type": "string", "description": "Deployment ID"},
-                            "clone_id": {"type": "string", "description": "Clone ID"}
+                            "deployment_id": {"type": "string", "description": "Deployment ID"}
                         }
                     }
                 ),                
@@ -115,7 +114,6 @@ class GuepardDeploymentServer:
                         "type": "object",
                         "properties": {
                             "deployment_id": {"type": "string", "description": "Deployment ID"},
-                            "clone_id": {"type": "string", "description": "Clone ID"}
                         }
                     }
                 ),
@@ -242,8 +240,8 @@ class GuepardDeploymentServer:
         async with self.session.get(url, headers=self._get_auth_headers(), params=params) as response:
             response.raise_for_status()
             return await response.json()
-    async def _start_compute(self, deployment_id: str, clone_id: str) -> dict:
-        url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/start"
+    async def _start_compute(self, deployment_id: str) -> dict:
+        url = f"{self.api_base_url}/deploy/{deployment_id}/start"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
             if response.status >= 400:
@@ -253,8 +251,8 @@ class GuepardDeploymentServer:
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return json.loads(text)
-    async def _stop_compute(self, deployment_id: str, clone_id: str) -> dict:
-        url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/stop"
+    async def _stop_compute(self, deployment_id: str) -> dict:
+        url = f"{self.api_base_url}/deploy/{deployment_id}/stop"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
             if response.status >= 400:
