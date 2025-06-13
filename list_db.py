@@ -98,6 +98,17 @@ class GuepardDeploymentServer:
                     }
                 ),
                 types.Tool(
+                    name="stop_compute",
+                    description="Stop compute for a specific deployment",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "deployment_id": {"type": "string", "description": "Deployment ID"},
+                            "clone_id": {"type": "string", "description": "Clone ID"}
+                        }
+                    }
+                ),                
+                types.Tool(
                     name="start_compute",
                     description="Start compute for a specific deployment",
                     inputSchema={
@@ -215,6 +226,8 @@ class GuepardDeploymentServer:
                     result = await self._create_snapshot(**arguments)
                 elif name == "start_compute":
                     result = await self._start_compute(**arguments)
+                elif name == "stop_compute":
+                    result = await self._stop_compute(**arguments)
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
                 return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -231,6 +244,17 @@ class GuepardDeploymentServer:
             return await response.json()
     async def _start_compute(self, deployment_id: str, clone_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/start"
+        async with self.session.get(url, headers=self._get_auth_headers()) as response:
+            text = await response.text()
+            if response.status >= 400:
+                try:
+                    error_msg = json.loads(text).get('message', text)
+                except json.JSONDecodeError:
+                    error_msg = text
+                raise Exception(f"API Error {response.status}: {error_msg}")
+            return json.loads(text)
+    async def _stop_compute(self, deployment_id: str, clone_id: str) -> dict:
+        url = f"{self.api_base_url}/deploy/{deployment_id}/{clone_id}/stop"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
             if response.status >= 400:
