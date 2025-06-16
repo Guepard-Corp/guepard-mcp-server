@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-"""
-Guepard Deployment API MCP Server
-"""
 
 import os
 import json
@@ -10,6 +6,8 @@ import argparse
 import logging
 import aiohttp
 from typing import Dict, List, Optional, Union
+import traceback
+from mcp import server as mcp_server
 
 from dotenv import load_dotenv
 from mcp.server import Server
@@ -28,7 +26,8 @@ class GuepardDeploymentServer:
     def __init__(self):
         self.server = Server("guepard-deployment-server")
         self.session = None
-        self.access_token = None
+        self.access_token = os.getenv("access_token")
+        print(f"Access token: {self.access_token}")
 
         # Load environment variables
         self.supabase_url = "https://zvcpnahtojfbbetnlshj.supabase.co/auth/v1/token?grant_type=password"
@@ -49,11 +48,7 @@ class GuepardDeploymentServer:
 
     async def connect(self):
         self.session = aiohttp.ClientSession()
-        logger.info("Attempting to log in...")
-        self.access_token = await self._login()
-        if not self.access_token:
-            raise Exception("Supabase authentication failed.")
-        logger.info("Successfully authenticated with Supabase.")
+        logger.info("Session started.")
 
     async def disconnect(self):
         if self.session:
@@ -61,15 +56,13 @@ class GuepardDeploymentServer:
             logger.info("Session disconnected.")
 
     def _get_auth_headers(self) -> Dict[str, str]:
-        if not self.access_token:
-            raise Exception("Missing access token.")
         return {
             "Content-Type": "application/json",
             "apikey": self.api_key,
             "Authorization": f"Bearer {self.access_token}"
         }
 
-    async def _login(self) -> Optional[str]:
+    """ async def _login(self) -> Optional[str]:
         payload = {"email": self.email, "password": self.password}
         try:
             async with self.session.post(self.supabase_url, json=payload, headers={"Content-Type": "application/json", "apikey": self.api_key}) as response:
@@ -79,7 +72,7 @@ class GuepardDeploymentServer:
         except Exception as e:
             logger.error(f"Login error: {str(e)}")
             return None
-
+ """
     def _setup_handlers(self):
 
         @self.server.list_tools()
@@ -201,10 +194,10 @@ class GuepardDeploymentServer:
                         "type": "object",
                         "properties": {
                             "deployment_id": {"type": "string"},
-                            "clone_id": {"type": "string"},
+                            "branch_id": {"type": "string"},
                             "snapshot_comment": {"type": "string"}
                         },
-                        "required": ["deployment_id", "clone_id", "snapshot_comment"]
+                        "required": ["deployment_id", "branch_id", "snapshot_comment"]
                     }
                 ),
                 types.Tool(
@@ -361,7 +354,7 @@ async def main():
     try:
         await server.connect()
         logger.info("Guepard MCP Server is running...")
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        async with mcp_server.stdio.stdio_server() as (read_stream, write_stream):
             await server.server.run(
                 read_stream,
                 write_stream,
@@ -372,10 +365,9 @@ async def main():
                 )
             )
     except KeyboardInterrupt:
-        logger.info("Shutdown requested")
+        logger.info("Shutdown requested.")
     except Exception as e:
         logger.error(f"Server error: {e}")
-        import traceback
         logger.error(traceback.format_exc())
         sys.exit(1)
     finally:
