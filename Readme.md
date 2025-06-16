@@ -48,7 +48,7 @@ guepard/
        "guepard-deployment": {
          "command": "/full/path/to/venv/bin/python",
          "args": ["/full/path/to/list_db.py"],
-         "env": {}
+         "env": {"access_token":"<your access token here>"}
        }
      }
     }
