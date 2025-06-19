@@ -212,6 +212,22 @@ class GuepardDeploymentServer:
                         },
                         "required": ["deployment_id", "clone_id"]
                     }
+                ),
+                types.Tool(
+                    name="checkout_bookmark",
+                    description="Checkout to a specific bookmark",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "deployment_id": {"type": "string"},
+                            "branch_id": {"type": "string"},
+                            "snapshot_id": {"type": "string"},
+                            "discard_changes": true,
+                            "checkout": true,
+                            "ephemeral": true
+                        },
+                        "required": ["deployment_id", "branch_id", "snapshot_comment"]
+                    }
                 )
             ]
 
@@ -264,6 +280,8 @@ class GuepardDeploymentServer:
                     return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "checkout_branch":
                     result = await self._checkout_branch(**arguments)
+                elif name == "checkout_bookmark":
+                    result = await self._checkout_bookmark(**arguments)
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -279,7 +297,29 @@ class GuepardDeploymentServer:
                 logger.error(f"Tool '{name}' failed: {str(e)}")
                 error_json = json.dumps({"error": str(e)})
                 return [types.TextContent(type="text", text=error_json)]
+    async def _checkout_bookmark(self, **kwargs) -> dict:
+        deployment_id = kwargs["deployment_id"]
+        branch_id = kwargs["branch_id"]
+        snapshot_id = kwargs["snapshot_id"]
+        discard_changes = kwargs.get("discard_changes", "true")
+        checkout = kwargs.get("checkout", True)
+        ephemeral = kwargs.get("ephemeral", True)
 
+        url = f"{self.api_base_url}/deploy/{deployment_id}/{branch_id}/{snapshot_id}/branch"
+        payload = {
+            "discard_changes": discard_changes,
+            "checkout": checkout,
+            "ephemeral": ephemeral
+        }
+        async with self.session.post(url, headers=self._get_auth_headers(), json=payload) as response:
+            text = await response.text()
+            if response.status >= 400:
+                try:
+                    error_msg = json.loads(text).get('message', text)
+                except json.JSONDecodeError:
+                    error_msg = text
+                raise Exception(f"API Error {response.status}: {error_msg}")
+            return json.loads(text)
     async def _checkout_branch(self, **kwargs) -> dict:
         deployment_id = kwargs["deployment_id"]
         clone_id = kwargs["clone_id"]
@@ -485,6 +525,7 @@ Connection string: postgresql://{username}:{password}@{fqdn}:{port}"""
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return json.loads(text)
+    
     async def _check_deployment_status(self, deployment_id: str) -> str:
         """
         Check the status of a deployment.
