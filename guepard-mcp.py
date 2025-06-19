@@ -15,14 +15,17 @@ import mcp.types as types
 import mcp.server.stdio
 from mcp.server.sse import SseServerTransport
 
-# Web server imports
+from mcp.types import ServerNotification, LoggingMessageNotification
+from mcp.shared.context import RequestContext
+import mcp.server.lowlevel.server as lowlevel_server
+
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.requests import Request
 from starlette.responses import Response
 import uvicorn
+import asyncio
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -36,12 +39,10 @@ class GuepardDeploymentServer:
         self.access_token = os.getenv("access_token")
         print(f"Access token: {self.access_token}")
 
-        # Load environment variables
         self.supabase_url = "https://zvcpnahtojfbbetnlshj.supabase.co/auth/v1/token?grant_type=password"
         self.api_base_url = "https://api.dev.guepard.run"
-        self.api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2Y3BuYWh0b2pmYmJldG5sc2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2Mjg5MjgsImV4cCI6MjA2MTIwNDkyOH0.d-yl_231WhtTsnfuxTDvEtW35wyXMtro5M7Xu3vuGQ4"
+        self.api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2Y3BuYWh0b2pmYmJldG5sc2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2Mjg5MjgsImV4cCI6MjA2MTIwNDkyOH0.d-yl_231Wht[...]"
 
-        # Validate credentials
         if not self.api_key:
             raise ValueError("Missing SUPABASE_API_KEY in environment.")
 
@@ -137,7 +138,7 @@ class GuepardDeploymentServer:
                                 "type": "string",
                                 "default": "16"
                             },
-                            "data_center": {
+                            "datacenter": {
                                 "type": "string",
                                 "default": "us-west-aws"
                             },
@@ -167,7 +168,7 @@ class GuepardDeploymentServer:
                             "deployment_type",
                             "database_provider",
                             "database_version",
-                            "data_center",
+                            "datacenter",
                             "region",
                             "instance_type",
                             "repository_name",
@@ -213,14 +214,42 @@ class GuepardDeploymentServer:
                     result = await self._get_deployments(**arguments)
                 elif name == "create_deployment":
                     result = await self._create_deployment(**arguments)
+                    deployment_id = result.get("id")
+                    name = result.get("name")
+                    fqdn = result.get("fqdn")
+                    port = result.get("port")
+                    username = result.get("database_username")
+                    password = result.get("database_password")
+                    async def wait_until_created_and_notify(deployment_id):
+                        max_retries = 30  
+                        for _ in range(max_retries):
+                            await asyncio.sleep(5)
+                            deployment = await self._get_deployments(deployment_id=deployment_id)
+                            if deployment and isinstance(deployment, dict):
+                                if deployment.get("status") == "CREATED":  
+                                    await self._send_deployment_created_notification(deployment_id,name, fqdn, port, username, password)
+                                    logger.info(f"Deployment {deployment_id} is created and notification sent.")
+                                    break
+                        else:
+                            print(f"[Timeout] Deployment {deployment_id} did not reach 'created' status.")
+
+                    asyncio.create_task(wait_until_created_and_notify(deployment_id))
+
+                    return [types.TextContent(type="text", text=json.dumps(result))]
+
                 elif name == "create_branch":
                     result = await self._create_branch(**arguments)
                 elif name == "create_snapshot":
                     result = await self._create_snapshot(**arguments)
+                
                 elif name == "start_compute":
                     result = await self._start_compute(**arguments)
+                    asyncio.create_task(self._send_compute_started_notification("Compute started"))
+                    return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "stop_compute":
                     result = await self._stop_compute(**arguments)
+                    asyncio.create_task(self._send_compute_started_notification("Compute started"))
+                    return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "checkout_branch":
                     result = await self._checkout_branch(**arguments)
                 else:
@@ -257,11 +286,27 @@ class GuepardDeploymentServer:
         endpoint = f"/deploy/{deployment_id}" if deployment_id else "/deploy"
         params = {"status": status, "limit": max(1, min(limit, 1000))} if status else {"limit": max(1, min(limit, 1000))}
         url = f"{self.api_base_url}{endpoint}"
-        async with self.session.get(url, headers=self._get_auth_headers(), params=params) as response:
-            response.raise_for_status()
-            return await response.json()
+        try:
+            logger.info(f"Fetching deployment from URL: {url}")
+            async with self.session.get(url, headers=self._get_auth_headers(), params=params) as response:
+                if response.status == 404:
+                    logger.warning(f"Deployment not found: {deployment_id}")
+                    return []
+                response.raise_for_status()
+                data = await response.json()
+                logger.info(f"API Response: {json.dumps(data, indent=2)}")
+                return data
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error while fetching deployment: {str(e)}")
+            return []
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error in _get_deployments: {str(e)}")
+            return []
 
-    async def _start_compute(self, deployment_id: str) -> dict:
+    async def other(self, deployment_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/start"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
@@ -271,7 +316,23 @@ class GuepardDeploymentServer:
                 except json.JSONDecodeError:
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
-            return json.loads(text)
+            data = json.loads(text)
+            
+            try:
+                session = lowlevel_server.request_ctx.get().session
+                notification = ServerNotification(
+                    method="computeStarted",
+                    params={
+                        "deployment_id": deployment_id,
+                        "status": data.get("status", "started"),
+                    }
+                )
+                await session.send_notification(notification)
+                logger.info(f"Sent computeStarted notification for deployment_id={deployment_id}")
+            except Exception as e:
+                logger.warning(f"Failed to send computeStarted notification: {e}")
+
+            return data
 
     async def _stop_compute(self, deployment_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/stop"
@@ -309,7 +370,7 @@ class GuepardDeploymentServer:
             "database_provider": "PostgreSQL",
             "database_version": "16",
             "region": "us",
-            "data_center": "us-west-aws",
+            "datacenter": "us-west-aws",
             "instance_type": "free",
             "repository_name": "Guepard-API-Postgres",
             "database_username": "postgres",
@@ -345,9 +406,82 @@ class GuepardDeploymentServer:
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return json.loads(text)
+    async def _send_compute_started_notification(self, deployment_id: str):
+        try:
+            import mcp.server.lowlevel.server as lowlevel_server
+            session = lowlevel_server.request_ctx.get().session
+            notification = LoggingMessageNotification(
+            method="notifications/message",
+            params={
+                "level": "info",
+                "data": f"Compute started for deployment_id={deployment_id}"
+            }
+)
 
+            await session.send_notification(notification)
+            logger.info(f"Sent computeStarted notification for deployment_id={deployment_id}")
+        except Exception as e:
+            logger.warning(f"Failed to send computeStarted notification: {e}")
+    async def _send_deployment_created_notification(self, deployment_id, name, fqdn, port, username, password):
+        try:
+            import mcp.server.lowlevel.server as lowlevel_server
+            session = lowlevel_server.request_ctx.get().session
+            
+            
+            message = f"""Deployment is ready!
+Name: {name}
+Host: {fqdn}
+Port: {port}
+Username: {username}
+Password: {password}
+Connection string: postgresql://{username}:{password}@{fqdn}:{port}"""
 
-# Global server instance
+            notification = LoggingMessageNotification(
+                method="notifications/message",
+                params={
+                    "level": "info",
+                    "data": message
+                }
+            )
+
+            await session.send_notification(notification)
+            logger.info(f"Sent deployment created notification for deployment_id={deployment_id}")
+        except Exception as e:
+            logger.warning(f"Failed to send deployment created notification: {e}")
+    
+
+    async def _start_compute(self, deployment_id: str) -> dict:
+        url = f"{self.api_base_url}/deploy/{deployment_id}/start"
+        async with self.session.get(url, headers=self._get_auth_headers()) as response:
+            text = await response.text()
+            if response.status >= 400:
+                try:
+                    error_msg = json.loads(text).get('message', text)
+                except json.JSONDecodeError:
+                    error_msg = text
+                raise Exception(f"API Error {response.status}: {error_msg}")
+            return {}
+
+    async def _check_deployment_status(self, deployment_id: str) -> str:
+        """
+        Check the status of a deployment.
+        Returns the current status or None if deployment not found.
+        """
+        try:
+            deployments = await self._get_deployments(deployment_id=deployment_id)
+            if deployments and isinstance(deployments, list) and len(deployments) > 0:
+                deployment = deployments[0]
+                status = deployment.get("status")
+                logger.info(f"Deployment {deployment_id} status: {status}")
+                return status, deployment
+            else:
+                logger.warning(f"No deployment found with ID {deployment_id}")
+                return None, None
+        except Exception as e:
+            logger.error(f"Error checking deployment status: {str(e)}")
+            return None, None
+
+#global
 mcp_app = None
 
 
@@ -369,20 +503,17 @@ async def cleanup_server():
 def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
     """Create a Starlette app with SSE transport"""
     
-    # Create SSE transport with message endpoint
     sse_transport = SseServerTransport("/messages/")
     
     async def handle_sse(request: Request):
         """Handle SSE connections"""
         try:
-            # Initialize server if not already done
             if mcp_app is None:
                 await setup_server()
             
             async with sse_transport.connect_sse(
                 request.scope, request.receive, request._send
             ) as streams:
-                # Run the MCP server with the SSE streams
                 await mcp_app.server.run(
                     streams[0], 
                     streams[1], 
@@ -392,7 +523,6 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
             logger.error(f"SSE handler error: {e}")
             logger.error(traceback.format_exc())
         finally:
-            # Return empty response to avoid NoneType error
             return Response()
 
     async def handle_health(request: Request):
@@ -417,7 +547,6 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
             media_type="application/json"
         )
 
-    # Create Starlette routes
     routes = [
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/health", endpoint=handle_health, methods=["GET"]),
@@ -425,10 +554,8 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
         Mount("/messages/", app=sse_transport.handle_post_message),
     ]
 
-    # Create Starlette app
     app = Starlette(routes=routes)
     
-    # Add startup and shutdown event handlers
     @app.on_event("startup")
     async def startup_event():
         await setup_server()
@@ -486,10 +613,8 @@ async def main():
     if args.transport == "stdio":
         await run_stdio()
     elif args.transport == "sse":
-        # Create and run the SSE app
         app = create_sse_app(args.host, args.port)
         
-        # Use uvicorn to run the Starlette app
         config = uvicorn.Config(
             app, 
             host=args.host, 
