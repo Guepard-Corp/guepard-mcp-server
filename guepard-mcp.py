@@ -191,6 +191,17 @@ class GuepardDeploymentServer:
                     }
                 ),
                 types.Tool(
+                    name="get_branches",
+                    description="Get branches for a specific deployment",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "deployment_id": {"type": "string"}
+                        },
+                        "required": ["deployment_id"]
+                    }
+                ),  
+                types.Tool(
                     name="checkout_branch",
                     description="Checkout to a specific branch",
                     inputSchema={
@@ -241,7 +252,8 @@ class GuepardDeploymentServer:
                     result = await self._create_branch(**arguments)
                 elif name == "create_snapshot":
                     result = await self._create_snapshot(**arguments)
-                
+                elif name == "get_branches":
+                    result = await self._get_branches(**arguments)
                 elif name == "start_compute":
                     result = await self._start_compute(**arguments)
                     asyncio.create_task(self._send_compute_started_notification("Compute started"))
@@ -461,7 +473,18 @@ Connection string: postgresql://{username}:{password}@{fqdn}:{port}"""
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return {}
-
+    async def _get_branches(self, **kwargs) -> dict:
+        deployment_id = kwargs["deployment_id"]
+        url = f"{self.api_base_url}/deploy/{deployment_id}/branch"
+        async with self.session.get(url, headers=self._get_auth_headers()) as response:
+            text = await response.text()
+            if response.status >= 400:
+                try:
+                    error_msg = json.loads(text).get('message', text)
+                except json.JSONDecodeError:
+                    error_msg = text
+                raise Exception(f"API Error {response.status}: {error_msg}")
+            return json.loads(text)
     async def _check_deployment_status(self, deployment_id: str) -> str:
         """
         Check the status of a deployment.
