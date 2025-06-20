@@ -222,9 +222,9 @@ class GuepardDeploymentServer:
                             "deployment_id": {"type": "string"},
                             "branch_id": {"type": "string"},
                             "snapshot_id": {"type": "string"},
-                            "discard_changes": true,
-                            "checkout": true,
-                            "ephemeral": true
+                            "discard_changes": "true",
+                            "checkout": "true",
+                            "ephemeral": "true"
                         },
                         "required": ["deployment_id", "branch_id", "snapshot_comment"]
                     }
@@ -266,17 +266,28 @@ class GuepardDeploymentServer:
 
                 elif name == "create_branch":
                     result = await self._create_branch(**arguments)
-                elif name == "create_snapshot":
-                    result = await self._create_snapshot(**arguments)
+                elif name == "create_bookmark":
+                    deployment_id = arguments.get("deployment_id")
+                    branches = await self._get_branches(deployment_id=deployment_id)
+                    branch = branches[0] if isinstance(branches, list) else branches
+                    branch_id = branch.get("id")
+                    branch_name = branch.get("branch_name")
+                    
+
+                    if not branch_id:
+                        return [types.TextContent(type="text", text=" Could not find branch ID in branch data.")]
+                    result = await self._create_bookmark(deployment_id=deployment_id, branch_id=branch_id, snapshot_comment=arguments.get("snapshot_comment", "Bookmark created"))
+                    return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "get_branches":
                     result = await self._get_branches(**arguments)
+                
                 elif name == "start_compute":
                     result = await self._start_compute(**arguments)
                     asyncio.create_task(self._send_compute_started_notification("Compute started"))
                     return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "stop_compute":
                     result = await self._stop_compute(**arguments)
-                    asyncio.create_task(self._send_compute_started_notification("Compute started"))
+                    asyncio.create_task(self._send_compute_started_notification("Compute stopped"))
                     return [types.TextContent(type="text", text=json.dumps({}))]
                 elif name == "checkout_branch":
                     result = await self._checkout_branch(**arguments)
@@ -301,9 +312,9 @@ class GuepardDeploymentServer:
         deployment_id = kwargs["deployment_id"]
         branch_id = kwargs["branch_id"]
         snapshot_id = kwargs["snapshot_id"]
-        discard_changes = kwargs.get("discard_changes", "true")
-        checkout = kwargs.get("checkout", True)
-        ephemeral = kwargs.get("ephemeral", True)
+        discard_changes = kwargs.get("discard_changes", "True")
+        checkout = kwargs.get("checkout", "True")
+        ephemeral = kwargs.get("ephemeral", "True")
 
         url = f"{self.api_base_url}/deploy/{deployment_id}/{branch_id}/{snapshot_id}/branch"
         payload = {
@@ -449,7 +460,7 @@ class GuepardDeploymentServer:
 
         url = f"{self.api_base_url}/deploy/{deployment_id}/{branch_id}/snap"
 
-        async with self.session.put(url, headers=self._get_auth_headers(), json=payload) as response:
+        async with self.session.post(url, headers=self._get_auth_headers(), json=payload) as response:
             text = await response.text()
             if response.status >= 400:
                 try:
@@ -458,6 +469,7 @@ class GuepardDeploymentServer:
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return json.loads(text)
+
     async def _send_compute_started_notification(self, deployment_id: str):
         try:
             import mcp.server.lowlevel.server as lowlevel_server
@@ -514,6 +526,7 @@ Connection string: postgresql://{username}:{password}@{fqdn}:{port}"""
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return {}
     async def _get_branches(self, **kwargs) -> dict:
+        """Retrieve from get branches the information about branches including the snapshot id """
         deployment_id = kwargs["deployment_id"]
         url = f"{self.api_base_url}/deploy/{deployment_id}/branch"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
@@ -664,9 +677,24 @@ async def run_stdio():
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Guepard Deployment MCP Server")
+    parser = argparse.ArgumentParser(
+        description="Guepard Deployment MCP Server with notification support",
+        epilog="""
+Notification Features:
+  - Real-time deployment status changes
+  - Compute start/stop notifications  
+  - Operation progress updates
+  - Background monitoring with subscriptions
+  
+  Run with stdio transport
+  python guepard-mcp.py --transport stdio
+  
+  Run with SSE transport (enables notifications)
+  python guepard-mcp.py --transport sse --host 0.0.0.0 --port 8000
+        """
+    )
     parser.add_argument("--transport", choices=["stdio", "sse"], default="stdio",
-                      help="Transport method to use (default: stdio)")
+                      help="Transport method to use (default: sse)")
     parser.add_argument("--host", default="127.0.0.1",
                       help="Host to bind to when using SSE transport (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000,
