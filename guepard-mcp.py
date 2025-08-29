@@ -4,9 +4,13 @@ import sys
 import argparse
 import logging
 import aiohttp
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Set
 import traceback
+import asyncio
+from datetime import datetime
 from mcp import server as mcp_server
+from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from dotenv import load_dotenv
 from mcp.server import Server
@@ -14,39 +18,214 @@ from mcp.server.models import InitializationOptions
 import mcp.types as types
 import mcp.server.stdio
 from mcp.server.sse import SseServerTransport
-
-from mcp.types import ServerNotification, LoggingMessageNotification
-from mcp.shared.context import RequestContext
-import mcp.server.lowlevel.server as lowlevel_server
+from mcp.server.lowlevel.server import NotificationOptions
 
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.requests import Request
 from starlette.responses import Response
 import uvicorn
-import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+access_token = os.getenv("ACCESS_TOKEN")
 
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        token = request.headers.get("Authorization")
+        if not token or token != f"Bearer {ACCESS_TOKEN}":
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        return await call_next(request)
+app = FastAPI()
+
+app.add_middleware(AuthMiddleware)
 class GuepardDeploymentServer:
+    access_token = os.getenv("ACCESS_TOKEN")
     def __init__(self):
         self.server = Server("guepard-deployment-server")
         self.session = None
-        self.access_token = os.getenv("access_token")
+        self.server_session = None   
+        self.access_token = access_token
+        self.monitoring_enabled = True
+        self.monitoring_task = None
+        self.deployment_cache = {} 
+        self.subscribed_deployments: Set[str] = set() 
+        
         print(f"Access token: {self.access_token}")
 
         self.supabase_url = "https://zvcpnahtojfbbetnlshj.supabase.co/auth/v1/token?grant_type=password"
         self.api_base_url = "https://api.dev.guepard.run"
-        self.api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2Y3BuYWh0b2pmYmJldG5sc2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2Mjg5MjgsImV4cCI6MjA2MTIwNDkyOH0.d-yl_231Wht[...]"
+        self.api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2Y3BuYWh0b2pmYmJldG5sc2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2Mjg5MjgsImV4cCI6MjA2MTIwNDkyOH0.d-yl_231WhtTsnfuxTDvEtW35wyXMtro5M7Xu3vuGQ4"
 
         if not self.api_key:
             raise ValueError("Missing SUPABASE_API_KEY in environment.")
 
         self._setup_handlers()
+
+    def set_server_session(self, server_session):
+        """Set the server session for sending notifications"""
+        self.server_session = server_session
+        
+    async def start_monitoring(self, interval: int = 30):
+        """Start background monitoring for deployment status changes"""
+        if self.monitoring_task is None or self.monitoring_task.done():
+            self.monitoring_task = asyncio.create_task(self._monitoring_loop(interval))
+            logger.info(f"Started deployment monitoring with {interval}s interval")
+
+    async def stop_monitoring(self):
+        """Stop background monitoring"""
+        if self.monitoring_task and not self.monitoring_task.done():
+            self.monitoring_task.cancel()
+            try:
+                await self.monitoring_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Stopped deployment monitoring")
+
+    async def _monitoring_loop(self, interval: int):
+        """Background task to monitor deployment status changes"""
+        while self.monitoring_enabled:
+            try:
+                if self.subscribed_deployments:
+                    await self._check_deployment_changes()
+                await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
+                await asyncio.sleep(interval)
+
+    async def _check_deployment_changes(self):
+        """Check for deployment status changes and send notifications"""
+        if not self.server_session:
+            return
+            
+        for deployment_id in self.subscribed_deployments.copy():
+            try:
+                current_state = await self._get_deployments(deployment_id=deployment_id)
+                if isinstance(current_state, dict):
+                    old_state = self.deployment_cache.get(deployment_id)
+                    
+                    if old_state:
+                        if old_state.get('status') != current_state.get('status'):
+                            await self._notify_status_change(deployment_id, old_state.get('status'), current_state.get('status'))
+                        
+                        if old_state.get('compute_status') != current_state.get('compute_status'):
+                            await self._notify_compute_change(deployment_id, current_state.get('compute_status'))
+                    
+                    self.deployment_cache[deployment_id] = current_state
+                    
+            except Exception as e:
+                logger.error(f"Error checking deployment {deployment_id}: {e}")
+
+    async def _notify_status_change(self, deployment_id: str, old_status: str, new_status: str):
+        """Send notification when deployment status changes"""
+        if not self.server_session:
+            return
+            
+        try:
+            message = f"Deployment {deployment_id} status changed from {old_status} to {new_status}"
+            await self.server_session.send_log_message(
+                level=types.LoggingLevel.INFO,
+                data={
+                    "event_type": "status_change",
+                    "deployment_id": deployment_id,
+                    "old_status": old_status,
+                    "new_status": new_status,
+                    "timestamp": datetime.now().isoformat(),
+                    "message": message
+                },
+                logger="guepard-deployment-monitor"
+            )
+            logger.info(f"Sent status change notification: {message}")
+        except Exception as e:
+            logger.error(f"Failed to send status change notification: {e}")
+
+    async def _notify_compute_change(self, deployment_id: str, compute_status: str):
+        """Send notification when compute status changes"""
+        if not self.server_session:
+            return
+            
+        try:
+            message = f"Deployment {deployment_id} compute status: {compute_status}"
+            await self.server_session.send_log_message(
+                level=types.LoggingLevel.INFO,
+                data={
+                    "event_type": "compute_change",
+                    "deployment_id": deployment_id,
+                    "compute_status": compute_status,
+                    "timestamp": datetime.now().isoformat(),
+                    "message": message
+                },
+                logger="guepard-compute-monitor"
+            )
+            logger.info(f"Sent compute change notification: {message}")
+        except Exception as e:
+            logger.error(f"Failed to send compute change notification: {e}")
+
+    async def _notify_operation_result(self, operation: str, deployment_id: str, success: bool, details: dict = None):
+        """Send notification for operation results"""
+        if not self.server_session:
+            return
+            
+        try:
+            status = "success" if success else "failed"
+            message = f"Operation '{operation}' {status} for deployment {deployment_id}"
+            
+            data = {
+                "event_type": "operation_result",
+                "operation": operation,
+                "deployment_id": deployment_id,
+                "success": success,
+                "timestamp": datetime.now().isoformat(),
+                "message": message
+            }
+            
+            if details:
+                data["details"] = details
+                
+            level = types.LoggingLevel.INFO if success else types.LoggingLevel.ERROR
+            
+            await self.server_session.send_log_message(
+                level=level,
+                data=data,
+                logger="guepard-operations"
+            )
+            logger.info(f"Sent operation result notification: {message}")
+        except Exception as e:
+            logger.error(f"Failed to send operation result notification: {e}")
+
+    async def _notify_progress(self, operation: str, deployment_id: str, progress: float, message: str = None):
+        """Send progress notification for long-running operations"""
+        if not self.server_session:
+            return
+            
+        try:
+            progress_token = f"{operation}_{deployment_id}"
+            await self.server_session.send_progress_notification(
+                progress_token=progress_token,
+                progress=progress,
+                total=100.0,
+                message=message or f"{operation} in progress for {deployment_id}"
+            )
+            logger.debug(f"Sent progress notification: {operation} {progress}% for {deployment_id}")
+        except Exception as e:
+            logger.error(f"Failed to send progress notification: {e}")
+
+    def subscribe_deployment(self, deployment_id: str):
+        """Subscribe to notifications for a specific deployment"""
+        self.subscribed_deployments.add(deployment_id)
+        logger.info(f"Subscribed to notifications for deployment {deployment_id}")
+
+    def unsubscribe_deployment(self, deployment_id: str):
+        """Unsubscribe from notifications for a specific deployment"""
+        self.subscribed_deployments.discard(deployment_id)
+        if deployment_id in self.deployment_cache:
+            del self.deployment_cache[deployment_id]
+        logger.info(f"Unsubscribed from notifications for deployment {deployment_id}")
 
     async def connect(self):
         self.session = aiohttp.ClientSession()
@@ -56,6 +235,8 @@ class GuepardDeploymentServer:
         if self.session:
             await self.session.close()
             logger.info("Session disconnected.")
+        await self.stop_monitoring()
+        self.server_session = None
 
     def _get_auth_headers(self) -> Dict[str, str]:
         return {
@@ -87,8 +268,10 @@ class GuepardDeploymentServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "deployment_id": {"type": "string", "description": "Deployment ID"}
-                        }
+                            "deployment_id": {"type": "string", "description": "Deployment ID"},
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True}
+                        },
+                        "required": ["deployment_id"]
                     }
                 ),
                 types.Tool(
@@ -98,7 +281,9 @@ class GuepardDeploymentServer:
                         "type": "object",
                         "properties": {
                             "deployment_id": {"type": "string", "description": "Deployment ID"},
-                        }
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True}
+                        },
+                        "required": ["deployment_id"]
                     }
                 ),
                 types.Tool(
@@ -113,7 +298,8 @@ class GuepardDeploymentServer:
                             "branch_name": {"type": "string"},
                             "discard_changes": {"type": "string", "enum": ["true", "false"]},
                             "checkout": {"type": "boolean"},
-                            "ephemeral": {"type": "boolean"}
+                            "ephemeral": {"type": "boolean"},
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True}
                         },
                         "required": ["deployment_id", "clone_id", "snapshot_id", "branch_name"]
                     }
@@ -138,10 +324,6 @@ class GuepardDeploymentServer:
                                 "type": "string",
                                 "default": "16"
                             },
-                            "datacenter": {
-                                "type": "string",
-                                "default": "us-west-aws"
-                            },
                             "region": {
                                 "type": "string",
                                 "default": "us"
@@ -162,13 +344,14 @@ class GuepardDeploymentServer:
                             "performance_profile_id": {
                                 "type": "string",
                                 "default": "f8bdcb24-d9f1-4cc8-8e65-0f7edff74ada"
-                            }
+                            },
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True},
+                            "monitor": {"type": "boolean", "description": "Monitor deployment for status changes", "default": False}
                         },
                         "required": [
                             "deployment_type",
                             "database_provider",
                             "database_version",
-                            "datacenter",
                             "region",
                             "instance_type",
                             "repository_name",
@@ -185,22 +368,12 @@ class GuepardDeploymentServer:
                         "properties": {
                             "deployment_id": {"type": "string"},
                             "branch_id": {"type": "string"},
-                            "snapshot_comment": {"type": "string"}
+                            "snapshot_comment": {"type": "string"},
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True}
                         },
                         "required": ["deployment_id", "branch_id", "snapshot_comment"]
                     }
                 ),
-                types.Tool(
-                    name="get_branches",
-                    description="Get branches for a specific deployment",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "deployment_id": {"type": "string"}
-                        },
-                        "required": ["deployment_id"]
-                    }
-                ),  
                 types.Tool(
                     name="checkout_branch",
                     description="Checkout to a specific branch",
@@ -209,24 +382,57 @@ class GuepardDeploymentServer:
                         "properties": {
                             "deployment_id": {"type": "string"},
                             "clone_id": {"type": "string"},
+                            "notify": {"type": "boolean", "description": "Send notification when operation completes", "default": True}
                         },
                         "required": ["deployment_id", "clone_id"]
                     }
                 ),
                 types.Tool(
-                    name="checkout_bookmark",
-                    description="Checkout to a specific bookmark",
+                    name="subscribe_deployment",
+                    description="Subscribe to notifications for a deployment",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "deployment_id": {"type": "string"},
-                            "branch_id": {"type": "string"},
-                            "snapshot_id": {"type": "string"},
-                            "discard_changes": "true",
-                            "checkout": "true",
-                            "ephemeral": "true"
+                            "deployment_id": {"type": "string", "description": "Deployment ID to monitor"}
                         },
-                        "required": ["deployment_id", "branch_id", "snapshot_comment"]
+                        "required": ["deployment_id"]
+                    }
+                ),
+                types.Tool(
+                    name="unsubscribe_deployment", 
+                    description="Unsubscribe from notifications for a deployment",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "deployment_id": {"type": "string", "description": "Deployment ID to stop monitoring"}
+                        },
+                        "required": ["deployment_id"]
+                    }
+                ),
+                types.Tool(
+                    name="list_subscriptions",
+                    description="List all deployment subscriptions",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {}
+                    }
+                ),
+                types.Tool(
+                    name="start_monitoring",
+                    description="Start background monitoring with custom interval",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "interval": {"type": "integer", "description": "Monitoring interval in seconds", "default": 30, "minimum": 10}
+                        }
+                    }
+                ),
+                types.Tool(
+                    name="stop_monitoring",
+                    description="Stop background monitoring",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {}
                     }
                 )
             ]
@@ -237,62 +443,77 @@ class GuepardDeploymentServer:
                 return [types.TextContent(type="text", text=json.dumps({"error": "Not authenticated"}))]
 
             try:
+                notify = arguments.get("notify", True)
+                
                 if name == "get_deployments":
                     result = await self._get_deployments(**arguments)
                 elif name == "create_deployment":
                     result = await self._create_deployment(**arguments)
-                    deployment_id = result.get("id")
-                    name = result.get("name")
-                    fqdn = result.get("fqdn")
-                    port = result.get("port")
-                    username = result.get("database_username")
-                    password = result.get("database_password")
-                    async def wait_until_created_and_notify(deployment_id):
-                        max_retries = 30  
-                        for _ in range(max_retries):
-                            await asyncio.sleep(5)
-                            deployment = await self._get_deployments(deployment_id=deployment_id)
-                            if deployment and isinstance(deployment, dict):
-                                if deployment.get("status") == "CREATED":  
-                                    await self._send_deployment_created_notification(deployment_id,name, fqdn, port, username, password)
-                                    logger.info(f"Deployment {deployment_id} is created and notification sent.")
-                                    break
-                        else:
-                            print(f"[Timeout] Deployment {deployment_id} did not reach 'created' status.")
-
-                    asyncio.create_task(wait_until_created_and_notify(deployment_id))
-
-                    return [types.TextContent(type="text", text=json.dumps(result))]
-
+                    if notify and "id" in result:
+                        await self._notify_operation_result("create_deployment", result["id"], True, result)
+                        if arguments.get("monitor", False):
+                            self.subscribe_deployment(result["id"])
                 elif name == "create_branch":
+                    deployment_id = arguments["deployment_id"]
                     result = await self._create_branch(**arguments)
-                elif name == "create_bookmark":
-                    deployment_id = arguments.get("deployment_id")
-                    branches = await self._get_branches(deployment_id=deployment_id)
-                    branch = branches[0] if isinstance(branches, list) else branches
-                    branch_id = branch.get("id")
-                    branch_name = branch.get("branch_name")
-                    
-
-                    if not branch_id:
-                        return [types.TextContent(type="text", text=" Could not find branch ID in branch data.")]
-                    result = await self._create_bookmark(deployment_id=deployment_id, branch_id=branch_id, snapshot_comment=arguments.get("snapshot_comment", "Bookmark created"))
-                    return [types.TextContent(type="text", text=json.dumps({}))]
-                elif name == "get_branches":
-                    result = await self._get_branches(**arguments)
-                
+                    if notify:
+                        await self._notify_operation_result("create_branch", deployment_id, True, result)
+                elif name == "create_snapshot":
+                    deployment_id = arguments["deployment_id"]
+                    result = await self._create_snapshot(**arguments)
+                    if notify:
+                        await self._notify_operation_result("create_snapshot", deployment_id, True, result)
                 elif name == "start_compute":
-                    result = await self._start_compute(**arguments)
-                    asyncio.create_task(self._send_compute_started_notification("Compute started"))
-                    return [types.TextContent(type="text", text=json.dumps({}))]
+                    deployment_id = arguments["deployment_id"]
+                    await self._notify_progress("start_compute", deployment_id, 0, "Starting compute...")
+                    result = await self._start_compute(deployment_id)
+                    if notify:
+                        await self._notify_operation_result("start_compute", deployment_id, True, result)
+                    await self._notify_progress("start_compute", deployment_id, 100, "Compute started successfully")
                 elif name == "stop_compute":
-                    result = await self._stop_compute(**arguments)
-                    asyncio.create_task(self._send_compute_started_notification("Compute stopped"))
-                    return [types.TextContent(type="text", text=json.dumps({}))]
+                    deployment_id = arguments["deployment_id"]
+                    await self._notify_progress("stop_compute", deployment_id, 0, "Stopping compute...")
+                    result = await self._stop_compute(deployment_id)
+                    if notify:
+                        await self._notify_operation_result("stop_compute", deployment_id, True, result)
+                    await self._notify_progress("stop_compute", deployment_id, 100, "Compute stopped successfully")
                 elif name == "checkout_branch":
+                    deployment_id = arguments["deployment_id"]
                     result = await self._checkout_branch(**arguments)
-                elif name == "checkout_bookmark":
-                    result = await self._checkout_bookmark(**arguments)
+                    if notify:
+                        await self._notify_operation_result("checkout_branch", deployment_id, True, result)
+                elif name == "create_bookmark":
+                    deployment_id = arguments["deployment_id"]
+                    result = await self._create_bookmark(**arguments)
+                    if notify:
+                        await self._notify_operation_result("create_bookmark", deployment_id, True, result)
+                elif name == "subscribe_deployment":
+                    deployment_id = arguments["deployment_id"]
+                    self.subscribe_deployment(deployment_id)
+                    try:
+                        initial_state = await self._get_deployments(deployment_id=deployment_id)
+                        if isinstance(initial_state, dict):
+                            self.deployment_cache[deployment_id] = initial_state
+                    except Exception as e:
+                        logger.warning(f"Could not get initial state for {deployment_id}: {e}")
+                    result = {"message": f"Subscribed to notifications for deployment {deployment_id}", "deployment_id": deployment_id}
+                elif name == "unsubscribe_deployment":
+                    deployment_id = arguments["deployment_id"]
+                    self.unsubscribe_deployment(deployment_id)
+                    result = {"message": f"Unsubscribed from notifications for deployment {deployment_id}", "deployment_id": deployment_id}
+                elif name == "list_subscriptions":
+                    result = {
+                        "subscribed_deployments": list(self.subscribed_deployments),
+                        "monitoring_enabled": self.monitoring_enabled,
+                        "monitoring_active": self.monitoring_task is not None and not self.monitoring_task.done() if self.monitoring_task else False
+                    }
+                elif name == "start_monitoring":
+                    interval = arguments.get("interval", 30)
+                    await self.start_monitoring(interval)
+                    result = {"message": f"Started monitoring with {interval}s interval", "interval": interval}
+                elif name == "stop_monitoring":
+                    await self.stop_monitoring()
+                    result = {"message": "Stopped monitoring"}
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -307,30 +528,12 @@ class GuepardDeploymentServer:
             except Exception as e:
                 logger.error(f"Tool '{name}' failed: {str(e)}")
                 error_json = json.dumps({"error": str(e)})
+                
+                if "deployment_id" in arguments:
+                    await self._notify_operation_result(name, arguments["deployment_id"], False, {"error": str(e)})
+                
                 return [types.TextContent(type="text", text=error_json)]
-    async def _checkout_bookmark(self, **kwargs) -> dict:
-        deployment_id = kwargs["deployment_id"]
-        branch_id = kwargs["branch_id"]
-        snapshot_id = kwargs["snapshot_id"]
-        discard_changes = kwargs.get("discard_changes", "True")
-        checkout = kwargs.get("checkout", "True")
-        ephemeral = kwargs.get("ephemeral", "True")
 
-        url = f"{self.api_base_url}/deploy/{deployment_id}/{branch_id}/{snapshot_id}/branch"
-        payload = {
-            "discard_changes": discard_changes,
-            "checkout": checkout,
-            "ephemeral": ephemeral
-        }
-        async with self.session.post(url, headers=self._get_auth_headers(), json=payload) as response:
-            text = await response.text()
-            if response.status >= 400:
-                try:
-                    error_msg = json.loads(text).get('message', text)
-                except json.JSONDecodeError:
-                    error_msg = text
-                raise Exception(f"API Error {response.status}: {error_msg}")
-            return json.loads(text)
     async def _checkout_branch(self, **kwargs) -> dict:
         deployment_id = kwargs["deployment_id"]
         clone_id = kwargs["clone_id"]
@@ -349,27 +552,11 @@ class GuepardDeploymentServer:
         endpoint = f"/deploy/{deployment_id}" if deployment_id else "/deploy"
         params = {"status": status, "limit": max(1, min(limit, 1000))} if status else {"limit": max(1, min(limit, 1000))}
         url = f"{self.api_base_url}{endpoint}"
-        try:
-            logger.info(f"Fetching deployment from URL: {url}")
-            async with self.session.get(url, headers=self._get_auth_headers(), params=params) as response:
-                if response.status == 404:
-                    logger.warning(f"Deployment not found: {deployment_id}")
-                    return []
-                response.raise_for_status()
-                data = await response.json()
-                logger.info(f"API Response: {json.dumps(data, indent=2)}")
-                return data
-        except aiohttp.ClientError as e:
-            logger.error(f"Network error while fetching deployment: {str(e)}")
-            return []
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response: {str(e)}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error in _get_deployments: {str(e)}")
-            return []
+        async with self.session.get(url, headers=self._get_auth_headers(), params=params) as response:
+            response.raise_for_status()
+            return await response.json()
 
-    async def other(self, deployment_id: str) -> dict:
+    async def _start_compute(self, deployment_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/start"
         async with self.session.get(url, headers=self._get_auth_headers()) as response:
             text = await response.text()
@@ -379,23 +566,7 @@ class GuepardDeploymentServer:
                 except json.JSONDecodeError:
                     error_msg = text
                 raise Exception(f"API Error {response.status}: {error_msg}")
-            data = json.loads(text)
-            
-            try:
-                session = lowlevel_server.request_ctx.get().session
-                notification = ServerNotification(
-                    method="computeStarted",
-                    params={
-                        "deployment_id": deployment_id,
-                        "status": data.get("status", "started"),
-                    }
-                )
-                await session.send_notification(notification)
-                logger.info(f"Sent computeStarted notification for deployment_id={deployment_id}")
-            except Exception as e:
-                logger.warning(f"Failed to send computeStarted notification: {e}")
-
-            return data
+            return json.loads(text)
 
     async def _stop_compute(self, deployment_id: str) -> dict:
         url = f"{self.api_base_url}/deploy/{deployment_id}/stop"
@@ -433,7 +604,6 @@ class GuepardDeploymentServer:
             "database_provider": "PostgreSQL",
             "database_version": "16",
             "region": "us",
-            "datacenter": "us-west-aws",
             "instance_type": "free",
             "repository_name": "Guepard-API-Postgres",
             "database_username": "postgres",
@@ -460,7 +630,7 @@ class GuepardDeploymentServer:
 
         url = f"{self.api_base_url}/deploy/{deployment_id}/{branch_id}/snap"
 
-        async with self.session.post(url, headers=self._get_auth_headers(), json=payload) as response:
+        async with self.session.put(url, headers=self._get_auth_headers(), json=payload) as response:
             text = await response.text()
             if response.status >= 400:
                 try:
@@ -470,95 +640,8 @@ class GuepardDeploymentServer:
                 raise Exception(f"API Error {response.status}: {error_msg}")
             return json.loads(text)
 
-    async def _send_compute_started_notification(self, deployment_id: str):
-        try:
-            import mcp.server.lowlevel.server as lowlevel_server
-            session = lowlevel_server.request_ctx.get().session
-            notification = LoggingMessageNotification(
-            method="notifications/message",
-            params={
-                "level": "info",
-                "data": f"Compute started for deployment_id={deployment_id}"
-            }
-)
 
-            await session.send_notification(notification)
-            logger.info(f"Sent computeStarted notification for deployment_id={deployment_id}")
-        except Exception as e:
-            logger.warning(f"Failed to send computeStarted notification: {e}")
-    async def _send_deployment_created_notification(self, deployment_id, name, fqdn, port, username, password):
-        try:
-            import mcp.server.lowlevel.server as lowlevel_server
-            session = lowlevel_server.request_ctx.get().session
-            
-            
-            message = f"""Deployment is ready!
-Name: {name}
-Host: {fqdn}
-Port: {port}
-Username: {username}
-Password: {password}
-Connection string: postgresql://{username}:{password}@{fqdn}:{port}"""
 
-            notification = LoggingMessageNotification(
-                method="notifications/message",
-                params={
-                    "level": "info",
-                    "data": message
-                }
-            )
-
-            await session.send_notification(notification)
-            logger.info(f"Sent deployment created notification for deployment_id={deployment_id}")
-        except Exception as e:
-            logger.warning(f"Failed to send deployment created notification: {e}")
-    
-
-    async def _start_compute(self, deployment_id: str) -> dict:
-        url = f"{self.api_base_url}/deploy/{deployment_id}/start"
-        async with self.session.get(url, headers=self._get_auth_headers()) as response:
-            text = await response.text()
-            if response.status >= 400:
-                try:
-                    error_msg = json.loads(text).get('message', text)
-                except json.JSONDecodeError:
-                    error_msg = text
-                raise Exception(f"API Error {response.status}: {error_msg}")
-            return {}
-    async def _get_branches(self, **kwargs) -> dict:
-        """Retrieve from get branches the information about branches including the snapshot id """
-        deployment_id = kwargs["deployment_id"]
-        url = f"{self.api_base_url}/deploy/{deployment_id}/branch"
-        async with self.session.get(url, headers=self._get_auth_headers()) as response:
-            text = await response.text()
-            if response.status >= 400:
-                try:
-                    error_msg = json.loads(text).get('message', text)
-                except json.JSONDecodeError:
-                    error_msg = text
-                raise Exception(f"API Error {response.status}: {error_msg}")
-            return json.loads(text)
-    
-    async def _check_deployment_status(self, deployment_id: str) -> str:
-        """
-        Check the status of a deployment.
-        Returns the current status or None if deployment not found.
-        """
-        try:
-            deployments = await self._get_deployments(deployment_id=deployment_id)
-            if deployments and isinstance(deployments, list) and len(deployments) > 0:
-                deployment = deployments[0]
-                status = deployment.get("status")
-                logger.info(f"Deployment {deployment_id} status: {status}")
-                return status, deployment
-            else:
-                logger.warning(f"No deployment found with ID {deployment_id}")
-                return None, None
-        except Exception as e:
-            logger.error(f"Error checking deployment status: {str(e)}")
-            return None, None
-
-#global
 mcp_app = None
 
 
@@ -591,15 +674,52 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
             async with sse_transport.connect_sse(
                 request.scope, request.receive, request._send
             ) as streams:
-                await mcp_app.server.run(
-                    streams[0], 
-                    streams[1], 
-                    mcp_app.server.create_initialization_options()
+                init_options = mcp_app.server.create_initialization_options(
+                    notification_options=NotificationOptions(
+                        resources_changed=True,
+                        tools_changed=True,
+                        prompts_changed=False
+                    )
                 )
+                
+                from mcp.server.session import ServerSession
+                from mcp.shared.context import RequestContext
+                from contextlib import AsyncExitStack
+                import anyio
+                
+                async with AsyncExitStack() as stack:
+                    session = await stack.enter_async_context(
+                        ServerSession(
+                            streams[0],
+                            streams[1], 
+                            init_options,
+                            stateless=False,
+                        )
+                    )
+                    
+                    mcp_app.set_server_session(session)
+                    
+                    if mcp_app.subscribed_deployments:
+                        await mcp_app.start_monitoring()
+                    
+                    async with anyio.create_task_group() as tg:
+                        async for message in session.incoming_messages:
+                            logger.debug("Received message: %s", message)
+                            tg.start_soon(
+                                mcp_app.server._handle_message,
+                                message,
+                                session,
+                                {},  
+                                False,  
+                            )
+                            
         except Exception as e:
             logger.error(f"SSE handler error: {e}")
             logger.error(traceback.format_exc())
         finally:
+            if mcp_app:
+                mcp_app.set_server_session(None)
+                await mcp_app.stop_monitoring()
             return Response()
 
     async def handle_health(request: Request):
@@ -611,12 +731,33 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
         info = {
             "name": "guepard-deployment-server",
             "version": "1.0.0",
-            "description": "Guepard Deployment MCP Server with SSE support",
+            "description": "Guepard Deployment MCP Server with SSE support and notifications",
             "endpoints": {
                 "sse": f"http://{host}:{port}/sse",
                 "messages": f"http://{host}:{port}/messages/",
                 "health": f"http://{host}:{port}/health",
                 "info": f"http://{host}:{port}/info"
+            },
+            "capabilities": {
+                "notifications": {
+                    "status_changes": "Notifies when deployment status changes",
+                    "compute_events": "Notifies when compute starts/stops",
+                    "operation_progress": "Shows progress for long-running operations",
+                    "operation_results": "Notifies when operations complete"
+                },
+                "monitoring": {
+                    "background_monitoring": "Can monitor deployments for changes",
+                    "subscription_based": "Subscribe to specific deployments",
+                    "configurable_interval": "Adjustable monitoring frequency"
+                }
+            },
+            "tools": {
+                "deployment_management": ["get_deployments", "create_deployment"],
+                "compute_management": ["start_compute", "stop_compute"],
+                "branch_management": ["create_branch", "checkout_branch"],
+                "bookmark_management": ["create_bookmark"],
+                "notification_management": ["subscribe_deployment", "unsubscribe_deployment", "list_subscriptions"],
+                "monitoring_management": ["start_monitoring", "stop_monitoring"]
             }
         }
         return Response(
@@ -640,6 +781,11 @@ def create_sse_app(host: str = "127.0.0.1", port: int = 8000) -> Starlette:
         logger.info(f"SSE endpoint: http://{host}:{port}/sse")
         logger.info(f"Health check: http://{host}:{port}/health")
         logger.info(f"Server info: http://{host}:{port}/info")
+        logger.info("Notification capabilities enabled:")
+        logger.info("  - Deployment status changes")
+        logger.info("  - Compute start/stop events")
+        logger.info("  - Operation progress updates")
+        logger.info("  - Operation completion results")
 
     @app.on_event("shutdown")
     async def shutdown_event():
