@@ -29,8 +29,6 @@ ENV ACCESS_TOKEN=""
 ENV GUEPARD_API_URL="https://api.guepard.run"
 ENV GUEPARD_AUTH_API="https://auth.guepard.run"
 ENV SUPABASE_ANON_KEY=""
-ENV POSTGRES16_PROFILE_ID="e54710e1-73dd-4628-a51d-93d1aab5226c"
-ENV POSTGRES17_PROFILE_ID="b0a4e557-bb67-4463-b774-ad82c04ab087"
 
 # Tool activation configuration
 ARG GUEPARD_CONFIG=""

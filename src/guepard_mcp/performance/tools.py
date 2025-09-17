@@ -23,12 +23,14 @@ class ListPerformanceProfilesTool(MCPTool):
     async def execute(self, arguments: Dict[str, Any]) -> str:
         result = await self.client._make_api_call("GET", "/performance")
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to get performance profiles", 
                 result.get("message", "Unknown error")
             )
         
+        # Handle successful response (list of performance profiles)
         if isinstance(result, list):
             count = len(result)
             return format_success_response(f"Found {count} performance profiles", result)
@@ -194,12 +196,12 @@ class UpdatePerformanceProfileTool(MCPTool):
 
 
 class GetPerformanceProfilesTool(MCPTool):
-    """Tool for getting available performance profile defaults"""
+    """Tool for getting available performance profiles from API"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "get_performance_profiles",
-            "description": "Get available performance profile defaults",
+            "description": "Get available performance profiles from the API",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -207,25 +209,56 @@ class GetPerformanceProfilesTool(MCPTool):
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
-        # Get performance profiles from environment variables
-        postgres16_profile = os.getenv("POSTGRES16_PROFILE_ID", "e54710e1-73dd-4628-a51d-93d1aab5226c")
-        postgres17_profile = os.getenv("POSTGRES17_PROFILE_ID", "b0a4e557-bb67-4463-b774-ad82c04ab087")
+        # Fetch performance profiles from the API
+        result = await self.client._make_api_call("GET", "/performance")
         
-        profiles_info = [
-            f"• PostgreSQL 16: {postgres16_profile}",
-            f"• PostgreSQL 17: {postgres17_profile}"
-        ]
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
+            return format_error_response(
+                "Failed to get performance profiles from API", 
+                result.get("message", "Unknown error")
+            )
         
-        return format_success_response(
-            "Available Performance Profiles",
-            {
-                "profiles": {
-                    "postgres16": postgres16_profile,
-                    "postgres17": postgres17_profile
-                },
-                "description": "Use these profile IDs when creating deployments or configuring database performance settings."
-            }
-        )
+        # Handle successful response (list of performance profiles)
+        if isinstance(result, list):
+            if not result:
+                return format_success_response(
+                    "No performance profiles found",
+                    {
+                        "profiles": [],
+                        "description": "No performance profiles are currently available. You may need to create some first."
+                    }
+                )
+            
+            # Format the profiles for easy use
+            profiles_info = []
+            profiles_dict = {}
+            
+            for profile in result:
+                profile_id = profile.get("id", "Unknown")
+                label_name = profile.get("label_name", "Unnamed")
+                database_provider = profile.get("database_provider", "Unknown")
+                database_version = profile.get("database_version", "Unknown")
+                
+                profiles_info.append(f"• {label_name} ({database_provider} {database_version}): {profile_id}")
+                profiles_dict[f"{database_provider.lower()}{database_version}"] = profile_id
+            
+            return format_success_response(
+                f"Found {len(result)} performance profiles",
+                {
+                    "profiles": profiles_dict,
+                    "profiles_list": result,
+                    "description": "Use these profile IDs when creating deployments. Each profile specifies the database provider, version, and performance characteristics."
+                }
+            )
+        else:
+            return format_success_response(
+                "Performance profiles retrieved successfully",
+                {
+                    "profiles": result,
+                    "description": "Use these profile IDs when creating deployments or configuring database performance settings."
+                }
+            )
 
 
 class PerformanceModule(MCPModule):

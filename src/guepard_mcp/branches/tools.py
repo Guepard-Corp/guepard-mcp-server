@@ -30,7 +30,8 @@ class ListBranchesTool(MCPTool):
         
         result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/branch")
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to get branches", 
                 result.get("message", "Unknown error")

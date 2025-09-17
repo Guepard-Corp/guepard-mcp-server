@@ -60,7 +60,7 @@ class GuepardAPIClient:
         data: Optional[Dict] = None, 
         params: Optional[Dict] = None,
         use_auth_api: bool = False
-    ) -> Dict:
+    ) -> Any:
         """Make API call to Guepard platform"""
         base_url = self.auth_api_url if use_auth_api else self.api_base_url
         url = f"{base_url}{endpoint}"

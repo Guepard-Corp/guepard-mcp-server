@@ -42,12 +42,14 @@ class ListDeploymentsTool(MCPTool):
         
         result = await self.client._make_api_call("GET", "/deploy", params=params)
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to get deployments", 
                 result.get("message", "Unknown error")
             )
         
+        # Handle successful response (list of deployments)
         if isinstance(result, list):
             count = len(result)
             return format_success_response(f"Found {count} deployments", result)
@@ -100,7 +102,7 @@ class CreateDeploymentTool(MCPTool):
                     },
                     "performance_profile_id": {
                         "type": "string",
-                        "description": "Performance profile ID"
+                        "description": "Performance profile ID. Use 'get_performance_profiles' tool to get available profile IDs."
                     }
                 },
                 "required": ["repository_name", "performance_profile_id"]
