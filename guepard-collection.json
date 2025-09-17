@@ -1,0 +1,2576 @@
+{
+    "info": {
+      "name": "Guepard Public API",
+      "description": "Complete API collection for Guepard database management platform",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "version": "1.0.0"
+    },
+    "auth": {
+      "type": "bearer",
+      "bearer": [
+        {
+          "key": "token",
+          "value": "{{access_token}}",
+          "type": "string"
+        }
+      ]
+    },
+    "event": [
+      {
+        "listen": "prerequest",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "// Auto-refresh token if needed",
+            "const refreshToken = pm.environment.get('refresh_token');",
+            "const accessToken = pm.environment.get('access_token');",
+            "",
+            "if (!accessToken && refreshToken) {",
+            "    // You can add auto-refresh logic here",
+            "    console.log('No access token found, please login first');",
+            "}"
+          ]
+        }
+      },
+      {
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "// Auto-save IDs from responses",
+            "if (pm.response.code === 200) {",
+            "    const responseJson = pm.response.json();",
+            "    ",
+            "    // Save deployment ID",
+            "    if (responseJson.id && pm.request.url.path.includes('deployments')) {",
+            "        pm.environment.set('deployment_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save branch ID",
+            "    if (responseJson.id && pm.request.url.path.includes('branches')) {",
+            "        pm.environment.set('branch_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save snapshot ID",
+            "    if (responseJson.id && pm.request.url.path.includes('snapshots')) {",
+            "        pm.environment.set('snapshot_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save node ID",
+            "    if (responseJson.id && pm.request.url.path.includes('nodes')) {",
+            "        pm.environment.set('node_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save performance profile ID",
+            "    if (responseJson.id && pm.request.url.path.includes('performance-profiles')) {",
+            "        pm.environment.set('performance_profile_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save token ID",
+            "    if (responseJson.id && pm.request.url.path.includes('tokens')) {",
+            "        pm.environment.set('token_id', responseJson.id);",
+            "    }",
+            "    ",
+            "    // Save user info from auth response",
+            "    if (responseJson.user) {",
+            "        pm.environment.set('user_id', responseJson.user.id);",
+            "        pm.environment.set('user_email', responseJson.user.email);",
+            "    }",
+            "    ",
+            "    // Save tokens from auth response",
+            "    if (responseJson.access_token) {",
+            "        pm.environment.set('access_token', responseJson.access_token);",
+            "    }",
+            "    if (responseJson.refresh_token) {",
+            "        pm.environment.set('refresh_token', responseJson.refresh_token);",
+            "    }",
+            "}"
+          ]
+        }
+      }
+    ],
+    "variable": [
+      {
+        "key": "base_url",
+        "value": "{{base_url}}",
+        "type": "string"
+      }
+    ],
+    "item": [
+      {
+        "name": "Authentication",
+        "item": [
+          {
+            "name": "Login with Supabase",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "apikey",
+                  "value": "{{supabase_anon_key}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{guepard_auth_api}}/auth/v1/token?grant_type=password",
+                "host": ["{{guepard_auth_api}}"],
+                "path": ["auth", "v1", "token"],
+                "query": [
+                  {
+                    "key": "grant_type",
+                    "value": "password"
+                  }
+                ]
+              },
+              "description": "Login with Supabase authentication"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "apikey",
+                      "value": "{{supabase_anon_key}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{guepard_auth_api}}/auth/v1/token?grant_type=password",
+                    "host": ["{{guepard_auth_api}}"],
+                    "path": ["auth", "v1", "token"],
+                    "query": [
+                      {
+                        "key": "grant_type",
+                        "value": "password"
+                      }
+                    ]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"expires_in\": 3600,\n  \"token_type\": \"bearer\",\n  \"user\": {\n    \"id\": \"user-123\",\n    \"email\": \"user@example.com\",\n    \"created_at\": \"2024-01-15T10:30:00Z\",\n    \"updated_at\": \"2024-01-16T14:20:00Z\"\n  }\n}"
+              },
+              {
+                "name": "Error Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "apikey",
+                      "value": "{{supabase_anon_key}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"email\": \"wrong@example.com\",\n  \"password\": \"wrongpassword\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{guepard_auth_api}}/auth/v1/token?grant_type=password",
+                    "host": ["{{guepard_auth_api}}"],
+                    "path": ["auth", "v1", "token"],
+                    "query": [
+                      {
+                        "key": "grant_type",
+                        "value": "password"
+                      }
+                    ]
+                  }
+                },
+                "status": "Unauthorized",
+                "code": 401,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Invalid email or password\",\n  \"error_code\": \"INVALID_CREDENTIALS\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Refresh Token with Supabase",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "apikey",
+                  "value": "{{supabase_anon_key}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+              },
+              "url": {
+                "raw": "{{guepard_auth_api}}/auth/v1/token?grant_type=refresh_token",
+                "host": ["{{guepard_auth_api}}"],
+                "path": ["auth", "v1", "token"],
+                "query": [
+                  {
+                    "key": "grant_type",
+                    "value": "refresh_token"
+                  }
+                ]
+              },
+              "description": "Refresh access token with Supabase"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "apikey",
+                      "value": "{{supabase_anon_key}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{guepard_auth_api}}/auth/v1/token?grant_type=refresh_token",
+                    "host": ["{{guepard_auth_api}}"],
+                    "path": ["auth", "v1", "token"],
+                    "query": [
+                      {
+                        "key": "grant_type",
+                        "value": "refresh_token"
+                      }
+                    ]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"expires_in\": 3600,\n  \"token_type\": \"bearer\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Logout with Supabase",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                },
+                {
+                  "key": "apikey",
+                  "value": "{{supabase_anon_key}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+              },
+              "url": {
+                "raw": "{{guepard_auth_api}}/auth/v1/logout",
+                "host": ["{{guepard_auth_api}}"],
+                "path": ["auth", "v1", "logout"]
+              },
+              "description": "Logout and invalidate tokens with Supabase"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "apikey",
+                      "value": "{{supabase_anon_key}}"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{guepard_auth_api}}/auth/v1/logout",
+                    "host": ["{{guepard_auth_api}}"],
+                    "path": ["auth", "v1", "logout"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Successfully logged out\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Authentication endpoints"
+      },
+      {
+        "name": "Deployments",
+        "item": [
+          {
+            "name": "List Deployments",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy",
+                "host": ["{{base_url}}"],
+                "path": ["deploy"]
+              },
+              "description": "Get all deployments"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"deploy-123\",\n    \"name\": \"my-database\",\n    \"repository_name\": \"my-repo\",\n    \"status\": \"active\",\n    \"deployment_type\": \"REPOSITORY\",\n    \"database_provider\": \"PostgreSQL\",\n    \"database_version\": \"17\",\n    \"fqdn\": \"my-database.guepard.com\",\n    \"port\": 5432,\n    \"connection_string\": \"postgresql://user:pass@my-database.guepard.com:5432/db\",\n    \"region\": \"us-east-1\",\n    \"datacenter\": \"dc1\",\n    \"created_date\": \"2024-01-15T10:30:00Z\",\n    \"created_by\": \"user-123\"\n  },\n  {\n    \"id\": \"deploy-456\",\n    \"name\": \"staging-db\",\n    \"repository_name\": \"staging-repo\",\n    \"status\": \"stopped\",\n    \"deployment_type\": \"F2\",\n    \"database_provider\": \"PostgreSQL\",\n    \"database_version\": \"16\",\n    \"fqdn\": \"staging-db.guepard.com\",\n    \"port\": 5432,\n    \"connection_string\": \"postgresql://user:pass@staging-db.guepard.com:5432/db\",\n    \"region\": \"us-west-2\",\n    \"datacenter\": \"dc2\",\n    \"created_date\": \"2024-01-10T08:15:00Z\",\n    \"created_by\": \"user-456\"\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "Create Deployment",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"{{test_deployment_name}}\",\n  \"repository_name\": \"{{test_repository_name}}\",\n  \"database_provider\": \"{{database_provider}}\",\n  \"database_version\": \"{{database_version}}\",\n  \"deployment_type\": \"{{deployment_type}}\",\n  \"deployment_parent\": \"parent-deploy-123\",\n  \"snapshot_parent\": \"snapshot-456\",\n  \"performance_profile_id\": \"{{performance_profile_id}}\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy",
+                "host": ["{{base_url}}"],
+                "path": ["deploy"]
+              },
+              "description": "Create a new deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"my-new-database\",\n  \"repository_name\": \"my-repository\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"deployment_type\": \"REPOSITORY\",\n  \"deployment_parent\": \"parent-deploy-123\",\n  \"snapshot_parent\": \"snapshot-456\",\n  \"performance_profile_id\": \"profile-789\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"deploy-789\",\n  \"name\": \"my-new-database\",\n  \"repository_name\": \"my-repository\",\n  \"status\": \"creating\",\n  \"deployment_type\": \"REPOSITORY\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"fqdn\": \"my-new-database.guepard.com\",\n  \"port\": 5432,\n  \"connection_string\": \"postgresql://user:pass@my-new-database.guepard.com:5432/db\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\",\n  \"deployment_parent\": \"parent-deploy-123\",\n  \"snapshot_parent\": \"snapshot-456\",\n  \"performance_profile_id\": \"profile-789\"\n}"
+              },
+              {
+                "name": "Error Response - Quota Exceeded",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"my-new-database\",\n  \"repository_name\": \"my-repository\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"deployment_type\": \"REPOSITORY\",\n  \"deployment_parent\": \"parent-deploy-123\",\n  \"snapshot_parent\": \"snapshot-456\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy"]
+                  }
+                },
+                "status": "Payment Required",
+                "code": 402,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Quota exceeded\",\n  \"error_code\": \"QUOTA_EXCEEDED\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Deployment",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}"]
+              },
+              "description": "Get deployment details"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"deploy-123\",\n  \"name\": \"my-database\",\n  \"repository_name\": \"my-repo\",\n  \"fqdn\": \"my-database.guepard.com\",\n  \"connection_string\": \"postgresql://user:pass@my-database.guepard.com:5432/db\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"database_username\": \"admin\",\n  \"database_password\": \"secure-password\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\",\n  \"status\": \"active\",\n  \"deployment_type\": \"REPOSITORY\",\n  \"deployment_parent\": \"parent-deploy-123\",\n  \"snapshot_parent\": \"snapshot-456\",\n  \"node_id\": \"node-789\"\n}"
+              },
+              {
+                "name": "Error Response - Not Found",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/nonexistent-deploy",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "nonexistent-deploy"]
+                  }
+                },
+                "status": "Not Found",
+                "code": 404,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Deployment not found\",\n  \"error_code\": \"NOT_FOUND\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Update Deployment",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"repository_name\": \"updated-{{test_repository_name}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}"]
+              },
+              "description": "Update deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "PUT",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"updated-database-name\",\n  \"performance_profile_id\": \"profile-456\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"deploy-123\",\n  \"name\": \"updated-database-name\",\n  \"repository_name\": \"my-repo\",\n  \"status\": \"active\",\n  \"deployment_type\": \"REPOSITORY\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"fqdn\": \"updated-database-name.guepard.com\",\n  \"port\": 5432,\n  \"connection_string\": \"postgresql://user:pass@updated-database-name.guepard.com:5432/db\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\",\n  \"performance_profile_id\": \"profile-456\",\n  \"updated_date\": \"2024-01-16T14:20:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Delete Deployment",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}"]
+              },
+              "description": "Delete deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "DELETE",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Deployment deleted successfully\",\n  \"deployment_id\": \"deploy-123\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Deployment management"
+      },
+      {
+        "name": "Branches",
+        "item": [
+          {
+            "name": "List Branches",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/branch",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "branch"]
+              },
+              "description": "Get branches for deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"branch-123\",\n    \"label_name\": \"main\",\n    \"branch_name\": \"main\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"snapshot_id\": \"snapshot-456\",\n    \"is_ephemeral\": false,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-15T10:30:00Z\"\n  },\n  {\n    \"id\": \"branch-456\",\n    \"label_name\": \"feature-branch\",\n    \"branch_name\": \"feature-branch\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"snapshot_id\": \"snapshot-789\",\n    \"is_ephemeral\": true,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-16T14:20:00Z\"\n  }\n]"
+              },
+              {
+                "name": "Error Response - Unauthorized",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer invalid-token"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch"]
+                  }
+                },
+                "status": "Unauthorized",
+                "code": 401,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Missing token\",\n  \"error_code\": \"UNAUTHORIZED\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Create Branch",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"branch_name\": \"{{test_branch_name}}\",\n  \"snapshot_id\": \"{{snapshot_id}}\",\n  \"is_ephemeral\": false\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/{{branch_id}}/{{snapshot_id}}/branch",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "{{branch_id}}", "{{snapshot_id}}", "branch"]
+              },
+              "description": "Create a new branch"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"branch_name\": \"feature-branch\",\n  \"snapshot_id\": \"snapshot-456\",\n  \"is_ephemeral\": false\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/snapshot-456/branch",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "snapshot-456", "branch"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"branch-789\",\n  \"label_name\": \"feature-branch\",\n  \"branch_name\": \"feature-branch\",\n  \"account_id\": \"user-123\",\n  \"deployment_id\": \"deploy-123\",\n  \"snapshot_id\": \"snapshot-456\",\n  \"is_ephemeral\": false,\n  \"is_masked\": false,\n  \"is_purged\": false,\n  \"created_by\": \"user-123\",\n  \"created_date\": \"2024-01-15T10:30:00Z\"\n}"
+              },
+              {
+                "name": "Error Response - Invalid Snapshot",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"branch_name\": \"feature-branch\",\n  \"snapshot_id\": \"invalid-snapshot\",\n  \"is_ephemeral\": false\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/invalid-snapshot/branch",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "invalid-snapshot", "branch"]
+                  }
+                },
+                "status": "Bad Request",
+                "code": 400,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Invalid snapshot ID\",\n  \"error_code\": \"INVALID_SNAPSHOT\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Branch",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/branches/{{branch_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["branches", "{{branch_id}}"]
+              },
+              "description": "Get branch details"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"branch-456\",\n  \"label_name\": \"main\",\n  \"branch_name\": \"main\",\n  \"account_id\": \"user-123\",\n  \"deployment_id\": \"deploy-123\",\n  \"snapshot_id\": \"snapshot-789\",\n  \"is_ephemeral\": false,\n  \"is_masked\": false,\n  \"is_purged\": false,\n  \"created_by\": \"user-123\",\n  \"created_date\": \"2024-01-15T10:30:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Update Branch",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"label_name\": \"updated-{{test_branch_name}}\",\n  \"is_ephemeral\": true\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/{{branch_id}}/branch",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "{{branch_id}}", "branch"]
+              },
+              "description": "Update branch"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "PUT",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"label_name\": \"updated-branch-name\",\n  \"is_ephemeral\": true\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/branch",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "branch"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"branch-456\",\n  \"label_name\": \"updated-branch-name\",\n  \"branch_name\": \"updated-branch-name\",\n  \"account_id\": \"user-123\",\n  \"deployment_id\": \"deploy-123\",\n  \"snapshot_id\": \"snapshot-789\",\n  \"is_ephemeral\": true,\n  \"is_masked\": false,\n  \"is_purged\": false,\n  \"created_by\": \"user-123\",\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"updated_date\": \"2024-01-16T14:20:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Checkout Branch",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"snapshot_id\": \"{{snapshot_id}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/{{branch_id}}/checkout",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "{{branch_id}}", "checkout"]
+              },
+              "description": "Checkout to a specific snapshot"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"snapshot_id\": \"snapshot-789\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/checkout",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "checkout"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Branch checked out successfully\",\n  \"branch_id\": \"branch-456\",\n  \"snapshot_id\": \"snapshot-789\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Branch management"
+      },
+      {
+        "name": "Snapshots",
+        "item": [
+          {
+            "name": "Create Snapshot",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"snapshot_comment\": \"{{test_snapshot_comment}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/{{branch_id}}/snap",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "{{branch_id}}", "snap"]
+              },
+              "description": "Create a snapshot"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"comment\": \"Initial snapshot\",\n  \"is_ephemeral\": false\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/snap",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "snap"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"snapshot-789\",\n  \"comment\": \"Initial snapshot\",\n  \"account_id\": \"user-123\",\n  \"deployment_id\": \"deploy-123\",\n  \"branch_id\": \"branch-456\",\n  \"is_ephemeral\": false,\n  \"is_masked\": false,\n  \"is_purged\": false,\n  \"created_by\": \"user-123\",\n  \"created_date\": \"2024-01-15T10:30:00Z\"\n}"
+              },
+              {
+                "name": "Error Response - Branch Not Found",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"comment\": \"Initial snapshot\",\n  \"is_ephemeral\": false\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/invalid-branch/snap",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "invalid-branch", "snap"]
+                  }
+                },
+                "status": "Not Found",
+                "code": 404,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Branch not found\",\n  \"error_code\": \"BRANCH_NOT_FOUND\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "List Snapshots for Deployment",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/snap",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "snap"]
+              },
+              "description": "Get snapshots for deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/snap",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "snap"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"snapshot-123\",\n    \"comment\": \"Initial snapshot\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"branch_id\": \"branch-456\",\n    \"is_ephemeral\": false,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-15T10:30:00Z\"\n  },\n  {\n    \"id\": \"snapshot-456\",\n    \"comment\": \"Feature implementation\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"branch_id\": \"branch-789\",\n    \"is_ephemeral\": true,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-16T14:20:00Z\"\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "List Snapshots for Branch",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/{{branch_id}}/snap",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "{{branch_id}}", "snap"]
+              },
+              "description": "Get snapshots for branch"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/branch-456/snap",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "branch-456", "snap"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"snapshot-123\",\n    \"comment\": \"Initial snapshot\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"branch_id\": \"branch-456\",\n    \"is_ephemeral\": false,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-15T10:30:00Z\"\n  },\n  {\n    \"id\": \"snapshot-789\",\n    \"comment\": \"Bug fix\",\n    \"account_id\": \"user-123\",\n    \"deployment_id\": \"deploy-123\",\n    \"branch_id\": \"branch-456\",\n    \"is_ephemeral\": false,\n    \"is_masked\": false,\n    \"is_purged\": false,\n    \"created_by\": \"user-123\",\n    \"created_date\": \"2024-01-16T14:20:00Z\"\n  }\n]"
+              }
+            ]
+          }
+        ],
+        "description": "Snapshot management"
+      },
+      {
+        "name": "Nodes",
+        "item": [
+          {
+            "name": "List Nodes",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/nodes",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "nodes"]
+              },
+              "description": "Get all nodes"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/nodes",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "nodes"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"node-123\",\n    \"name\": \"compute-node-1\",\n    \"status\": \"active\",\n    \"region\": \"us-east-1\",\n    \"datacenter\": \"dc1\",\n    \"cpu_cores\": 8,\n    \"memory_gb\": 32,\n    \"storage_gb\": 500,\n    \"available_cpu\": 4,\n    \"available_memory\": 16,\n    \"available_storage\": 250,\n    \"created_date\": \"2024-01-15T10:30:00Z\"\n  },\n  {\n    \"id\": \"node-456\",\n    \"name\": \"compute-node-2\",\n    \"status\": \"active\",\n    \"region\": \"us-west-2\",\n    \"datacenter\": \"dc2\",\n    \"cpu_cores\": 16,\n    \"memory_gb\": 64,\n    \"storage_gb\": 1000,\n    \"available_cpu\": 8,\n    \"available_memory\": 32,\n    \"available_storage\": 500,\n    \"created_date\": \"2024-01-16T14:20:00Z\"\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "Create Node",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"label_name\": \"{{test_node_label}}\",\n  \"node_type\": \"{{node_type}}\",\n  \"node_pool\": \"default\",\n  \"datacenter\": \"{{datacenter}}\",\n  \"region\": \"{{region}}\",\n  \"hosting_provider\": \"{{hosting_provider}}\",\n  \"memory\": {{min_memory}},\n  \"cpu\": {{min_cpu}},\n  \"storage\": {{storage_size}},\n  \"created_by\": \"{{user_id}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/node",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "node"]
+              },
+              "description": "Create a new node"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"new-compute-node\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"cpu_cores\": 8,\n  \"memory_gb\": 32,\n  \"storage_gb\": 500\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/node",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "node"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"node-789\",\n  \"name\": \"new-compute-node\",\n  \"status\": \"initializing\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"cpu_cores\": 8,\n  \"memory_gb\": 32,\n  \"storage_gb\": 500,\n  \"available_cpu\": 8,\n  \"available_memory\": 32,\n  \"available_storage\": 500,\n  \"created_date\": \"2024-01-15T10:30:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Node",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/node/{{node_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "node", "{{node_id}}"]
+              },
+              "description": "Get node details"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/node/node-123",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "node", "node-123"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"node-123\",\n  \"name\": \"compute-node-1\",\n  \"status\": \"active\",\n  \"region\": \"us-east-1\",\n  \"datacenter\": \"dc1\",\n  \"cpu_cores\": 8,\n  \"memory_gb\": 32,\n  \"storage_gb\": 500,\n  \"available_cpu\": 4,\n  \"available_memory\": 16,\n  \"available_storage\": 250,\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"deployments\": [\n    {\n      \"id\": \"deploy-123\",\n      \"name\": \"my-database\",\n      \"status\": \"active\"\n    }\n  ]\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Node management"
+      },
+      {
+        "name": "Performance Profiles",
+        "item": [
+          {
+            "name": "List Performance Profiles",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/performance",
+                "host": ["{{base_url}}"],
+                "path": ["performance"]
+              },
+              "description": "Get all performance profiles"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/performance",
+                    "host": ["{{base_url}}"],
+                    "path": ["performance"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"profile-123\",\n    \"label_name\": \"Standard\",\n    \"description_text\": \"Standard performance profile\",\n    \"database_provider\": \"PostgreSQL\",\n    \"database_version\": \"17\",\n    \"min_cpu\": 2,\n    \"min_memory\": 4096,\n    \"config_flags\": {\n      \"max_connections\": 100,\n      \"shared_buffers\": \"256MB\"\n    },\n    \"created_date\": \"2024-01-15T10:30:00Z\",\n    \"created_by\": \"user-123\"\n  },\n  {\n    \"id\": \"profile-456\",\n    \"label_name\": \"High Performance\",\n    \"description_text\": \"High performance profile for production\",\n    \"database_provider\": \"PostgreSQL\",\n    \"database_version\": \"17\",\n    \"min_cpu\": 8,\n    \"min_memory\": 32768,\n    \"config_flags\": {\n      \"max_connections\": 500,\n      \"shared_buffers\": \"1GB\"\n    },\n    \"created_date\": \"2024-01-16T14:20:00Z\",\n    \"created_by\": \"user-123\"\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "Create Performance Profile",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"label_name\": \"{{test_performance_profile_name}}\",\n  \"description_text\": \"Test performance profile\",\n  \"database_provider\": \"{{database_provider}}\",\n  \"database_version\": \"{{database_version}}\",\n  \"min_cpu\": {{min_cpu}},\n  \"min_memory\": {{min_memory}},\n  \"config_flags\": {\n    \"max_connections\": 100,\n    \"shared_buffers\": \"256MB\"\n  }\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/performance",
+                "host": ["{{base_url}}"],
+                "path": ["performance"]
+              },
+              "description": "Create performance profile"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"label_name\": \"Custom Profile\",\n  \"description_text\": \"Custom performance profile\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"min_cpu\": 4,\n  \"min_memory\": 8192,\n  \"config_flags\": {\n    \"max_connections\": 200,\n    \"shared_buffers\": \"512MB\"\n  }\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/performance",
+                    "host": ["{{base_url}}"],
+                    "path": ["performance"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"profile-789\",\n  \"label_name\": \"Custom Profile\",\n  \"description_text\": \"Custom performance profile\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"min_cpu\": 4,\n  \"min_memory\": 8192,\n  \"config_flags\": {\n    \"max_connections\": 200,\n    \"shared_buffers\": \"512MB\"\n  },\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Update Performance Profile",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"label_name\": \"Updated {{test_performance_profile_name}}\",\n  \"description_text\": \"Updated test performance profile\",\n  \"min_cpu\": 4,\n  \"min_memory\": 8192\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/performance/{{performance_profile_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["performance", "{{performance_profile_id}}"]
+              },
+              "description": "Update performance profile"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "PUT",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"label_name\": \"Updated Custom Profile\",\n  \"description_text\": \"Updated custom performance profile\",\n  \"min_cpu\": 8,\n  \"min_memory\": 16384\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/performance/profile-789",
+                    "host": ["{{base_url}}"],
+                    "path": ["performance", "profile-789"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"profile-789\",\n  \"label_name\": \"Updated Custom Profile\",\n  \"description_text\": \"Updated custom performance profile\",\n  \"database_provider\": \"PostgreSQL\",\n  \"database_version\": \"17\",\n  \"min_cpu\": 8,\n  \"min_memory\": 16384,\n  \"config_flags\": {\n    \"max_connections\": 200,\n    \"shared_buffers\": \"512MB\"\n  },\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\",\n  \"updated_date\": \"2024-01-16T14:20:00Z\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Performance profile management"
+      },
+      {
+        "name": "Compute",
+        "item": [
+          {
+            "name": "Get Compute Status",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/compute",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "compute"]
+              },
+              "description": "Get compute status"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/compute",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "compute"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"deployment_id\": \"deploy-123\",\n  \"status\": \"running\",\n  \"cpu_usage\": 45.2,\n  \"memory_usage\": 67.8,\n  \"storage_usage\": 23.1,\n  \"uptime\": 3600,\n  \"last_updated\": \"2024-01-15T10:30:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Start Compute",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/start",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "start"]
+              },
+              "description": "Start compute"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/start",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "start"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Compute started successfully\",\n  \"deployment_id\": \"deploy-123\",\n  \"status\": \"starting\",\n  \"estimated_startup_time\": 30\n}"
+              }
+            ]
+          },
+          {
+            "name": "Stop Compute",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/stop",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "stop"]
+              },
+              "description": "Stop compute"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/stop",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "stop"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Compute stopped successfully\",\n  \"deployment_id\": \"deploy-123\",\n  \"status\": \"stopped\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Status",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/status",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "status"]
+              },
+              "description": "Get deployment status"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/status",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "status"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"deployment_id\": \"deploy-123\",\n  \"status\": \"active\",\n  \"health\": \"healthy\",\n  \"database_status\": \"running\",\n  \"compute_status\": \"running\",\n  \"storage_status\": \"available\",\n  \"last_health_check\": \"2024-01-15T10:30:00Z\",\n  \"uptime\": 3600\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Logs",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/logs",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "logs"]
+              },
+              "description": "Get deployment logs"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/logs",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "logs"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"deployment_id\": \"deploy-123\",\n  \"logs\": [\n    {\n      \"timestamp\": \"2024-01-15T10:30:00Z\",\n      \"level\": \"INFO\",\n      \"message\": \"Database started successfully\",\n      \"source\": \"database\"\n    },\n    {\n      \"timestamp\": \"2024-01-15T10:30:05Z\",\n      \"level\": \"INFO\",\n      \"message\": \"Connection pool initialized\",\n      \"source\": \"database\"\n    },\n    {\n      \"timestamp\": \"2024-01-15T10:30:10Z\",\n      \"level\": \"INFO\",\n      \"message\": \"Deployment ready for connections\",\n      \"source\": \"system\"\n    }\n  ],\n  \"total_logs\": 3,\n  \"last_updated\": \"2024-01-15T10:30:10Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Get Metrics",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/metrics",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "metrics"]
+              },
+              "description": "Get deployment metrics"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/metrics",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "metrics"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"deployment_id\": \"deploy-123\",\n  \"metrics\": {\n    \"cpu_usage_percent\": 45.2,\n    \"memory_usage_percent\": 67.8,\n    \"storage_usage_percent\": 23.1,\n    \"active_connections\": 15,\n    \"max_connections\": 100,\n    \"queries_per_second\": 25.5,\n    \"average_query_time_ms\": 12.3,\n    \"uptime_seconds\": 3600\n  },\n  \"timestamp\": \"2024-01-15T10:30:00Z\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Compute management"
+      },
+      {
+        "name": "Database Users",
+        "item": [
+          {
+            "name": "List Database Users",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/users",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "users"]
+              },
+              "description": "Get database users for deployment"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/users",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "users"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"user-123\",\n    \"username\": \"admin\",\n    \"privileges\": [\"ALL\"],\n    \"created_date\": \"2024-01-15T10:30:00Z\",\n    \"created_by\": \"user-123\"\n  },\n  {\n    \"id\": \"user-456\",\n    \"username\": \"readonly\",\n    \"privileges\": [\"SELECT\"],\n    \"created_date\": \"2024-01-16T14:20:00Z\",\n    \"created_by\": \"user-123\"\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "Create Database User",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\",\n  \"password\": \"{{test_db_password}}\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"]\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user"]
+              },
+              "description": "Create database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"newuser\",\n  \"password\": \"securepassword123\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"]\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"user-789\",\n  \"username\": \"newuser\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"],\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\"\n}"
+              },
+              {
+                "name": "Error Response - User Already Exists",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"securepassword123\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"]\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user"]
+                  }
+                },
+                "status": "Conflict",
+                "code": 409,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"User already exists\",\n  \"error_code\": \"USER_EXISTS\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Update Database User",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\",\n  \"password\": \"{{test_db_password}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user"]
+              },
+              "description": "Update database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "PUT",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"updateduser\",\n  \"password\": \"newpassword123\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"user-789\",\n  \"username\": \"updateduser\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"],\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"created_by\": \"user-123\",\n  \"updated_date\": \"2024-01-16T14:20:00Z\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Delete Database User",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user"]
+              },
+              "description": "Delete database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "DELETE",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"deleteduser\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Database user deleted successfully\",\n  \"username\": \"deleteduser\"\n}"
+              }
+            ]
+          },
+          {
+            "name": "Grant Privileges",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\", \"DELETE\"]\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user/grant-privs",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user", "grant-privs"]
+              },
+              "description": "Grant privileges to database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"testuser\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\", \"DELETE\"]\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user/grant-privs",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user", "grant-privs"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Privileges granted successfully\",\n  \"username\": \"testuser\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\", \"DELETE\"]\n}"
+              }
+            ]
+          },
+          {
+            "name": "Revoke Privileges",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\",\n  \"privileges\": [\"DELETE\"]\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user/revoke-privs",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user", "revoke-privs"]
+              },
+              "description": "Revoke privileges from database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"testuser\",\n  \"privileges\": [\"DELETE\"]\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user/revoke-privs",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user", "revoke-privs"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Privileges revoked successfully\",\n  \"username\": \"testuser\",\n  \"revoked_privileges\": [\"DELETE\"]\n}"
+              }
+            ]
+          },
+          {
+            "name": "List User Privileges",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{test_db_username}}\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/deploy/{{deployment_id}}/user/privs",
+                "host": ["{{base_url}}"],
+                "path": ["deploy", "{{deployment_id}}", "user", "privs"]
+              },
+              "description": "List privileges for database user"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"testuser\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/deploy/deploy-123/user/privs",
+                    "host": ["{{base_url}}"],
+                    "path": ["deploy", "deploy-123", "user", "privs"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"username\": \"testuser\",\n  \"privileges\": [\"SELECT\", \"INSERT\", \"UPDATE\"],\n  \"granted_date\": \"2024-01-15T10:30:00Z\",\n  \"granted_by\": \"user-123\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Database user management"
+      },
+      {
+        "name": "Tokens",
+        "item": [
+          {
+            "name": "List Tokens",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/tokens",
+                "host": ["{{base_url}}"],
+                "path": ["tokens"]
+              },
+              "description": "Get all tokens"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "GET",
+                  "header": [
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "url": {
+                    "raw": "{{base_url}}/tokens",
+                    "host": ["{{base_url}}"],
+                    "path": ["tokens"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "[\n  {\n    \"id\": \"token-123\",\n    \"name\": \"API Token\",\n    \"description\": \"Main API token\",\n    \"created_date\": \"2024-01-15T10:30:00Z\",\n    \"expires_date\": \"2024-02-15T10:30:00Z\",\n    \"last_used\": \"2024-01-16T14:20:00Z\",\n    \"is_active\": true\n  },\n  {\n    \"id\": \"token-456\",\n    \"name\": \"Test Token\",\n    \"description\": \"Token for testing\",\n    \"created_date\": \"2024-01-16T08:15:00Z\",\n    \"expires_date\": \"2024-01-23T08:15:00Z\",\n    \"last_used\": null,\n    \"is_active\": true\n  }\n]"
+              }
+            ]
+          },
+          {
+            "name": "Generate Token",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"{{test_token_name}}\",\n  \"expires_in\": 86400\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/tokens",
+                "host": ["{{base_url}}"],
+                "path": ["tokens"]
+              },
+              "description": "Generate new token"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "POST",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"New API Token\",\n  \"description\": \"Token for new integration\",\n  \"expires_in_days\": 30\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/generate-token",
+                    "host": ["{{base_url}}"],
+                    "path": ["generate-token"]
+                  }
+                },
+                "status": "Created",
+                "code": 201,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"id\": \"token-789\",\n  \"name\": \"New API Token\",\n  \"description\": \"Token for new integration\",\n  \"token\": \"gpd_1234567890abcdef\",\n  \"created_date\": \"2024-01-15T10:30:00Z\",\n  \"expires_date\": \"2024-02-14T10:30:00Z\",\n  \"is_active\": true\n}"
+              }
+            ]
+          },
+          {
+            "name": "Revoke Token",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/tokens/{{token_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["tokens", "{{token_id}}"]
+              },
+              "description": "Revoke token"
+            },
+            "response": [
+              {
+                "name": "Success Response",
+                "originalRequest": {
+                  "method": "DELETE",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Authorization",
+                      "value": "Bearer {{access_token}}"
+                    }
+                  ],
+                  "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"token_id\": \"token-789\"\n}"
+                  },
+                  "url": {
+                    "raw": "{{base_url}}/revoke-token",
+                    "host": ["{{base_url}}"],
+                    "path": ["revoke-token"]
+                  }
+                },
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "cookie": [],
+                "body": "{\n  \"message\": \"Token revoked successfully\",\n  \"token_id\": \"token-789\"\n}"
+              }
+            ]
+          }
+        ],
+        "description": "Token management"
+      }
+    ]
+  }
+  

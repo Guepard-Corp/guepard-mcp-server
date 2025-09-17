@@ -92,7 +92,8 @@ class CreateDatabaseUserTool(MCPTool):
         
         result = await self.client._make_api_call("POST", f"/deploy/{deployment_id}/user", data=data)
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to create database user", 
                 result.get("message", "Unknown error")

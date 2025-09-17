@@ -22,7 +22,8 @@ class ListNodesTool(MCPTool):
     async def execute(self, arguments: Dict[str, Any]) -> str:
         result = await self.client._make_api_call("GET", "/deploy/nodes")
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to get nodes", 
                 result.get("message", "Unknown error")
