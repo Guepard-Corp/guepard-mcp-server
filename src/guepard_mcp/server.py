@@ -25,6 +25,13 @@ from .performance.tools import PerformanceModule
 from .compute.tools import ComputeModule
 from .users.tools import UsersModule
 from .tokens.tools import TokensModule
+from .f2_deployments.tools import F2DeploymentsModule
+from .image_providers.tools import ImageProvidersModule
+from .usage.tools import UsageModule
+from .logs.tools import LogsModule
+from .checkouts.tools import CheckoutsModule
+from .shadows.tools import ShadowsModule
+from .schema.tools import SchemaModule
 
 # Load environment variables
 load_dotenv()
@@ -74,7 +81,14 @@ class GuepardMCPServer:
             "performance": PerformanceModule,
             "compute": ComputeModule,
             "users": UsersModule,
-            "tokens": TokensModule
+            "tokens": TokensModule,
+            "f2_deployments": F2DeploymentsModule,
+            "image_providers": ImageProvidersModule,
+            "usage": UsageModule,
+            "logs": LogsModule,
+            "checkouts": CheckoutsModule,
+            "shadows": ShadowsModule,
+            "schema": SchemaModule
         }
         
         for module_name, module_class in module_classes.items():

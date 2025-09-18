@@ -78,11 +78,48 @@ class StopComputeTool(MCPTool):
         )
 
 
+class GetComputeStatusTool(MCPTool):
+    """Tool for getting compute status for a deployment"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "get_compute_status",
+            "description": "Get compute status for a deployment",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    }
+                },
+                "required": ["deployment_id"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        
+        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/compute")
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to get compute status", 
+                result.get("message", "Unknown error")
+            )
+        
+        return format_success_response(
+            f"Compute status retrieved for deployment {deployment_id}",
+            result
+        )
+
+
 class ComputeModule(MCPModule):
     """Compute module containing all compute-related tools"""
     
     def _initialize_tools(self):
         self.tools = {
             "start_compute": StartComputeTool(self.client),
-            "stop_compute": StopComputeTool(self.client)
+            "stop_compute": StopComputeTool(self.client),
+            "get_compute_status": GetComputeStatusTool(self.client)
         }
