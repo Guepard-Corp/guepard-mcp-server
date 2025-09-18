@@ -1,19 +1,18 @@
 """
-Performance Profiles MCP Tools for Guepard Platform
+Performance MCP Tools for Guepard Platform
 """
 
-import os
 from typing import Dict, Any
 from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_response, format_error_response
 
 
 class ListPerformanceProfilesTool(MCPTool):
-    """Tool for listing all performance profiles"""
+    """Tool for listing all available performance profiles"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "list_performance_profiles",
-            "description": "Get all performance profiles",
+            "description": "Get all available performance profiles",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -30,7 +29,7 @@ class ListPerformanceProfilesTool(MCPTool):
                 result.get("message", "Unknown error")
             )
         
-        # Handle successful response (list of performance profiles)
+        # Handle successful response (list of profiles)
         if isinstance(result, list):
             count = len(result)
             return format_success_response(f"Found {count} performance profiles", result)
@@ -39,22 +38,22 @@ class ListPerformanceProfilesTool(MCPTool):
 
 
 class CreatePerformanceProfileTool(MCPTool):
-    """Tool for creating a performance profile"""
+    """Tool for creating a new performance profile"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "create_performance_profile",
-            "description": "Create performance profile",
+            "description": "Create a new performance profile",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "label_name": {
                         "type": "string",
-                        "description": "Performance profile label name"
+                        "description": "Profile label name"
                     },
                     "description_text": {
                         "type": "string",
-                        "description": "Description text"
+                        "description": "Profile description"
                     },
                     "database_provider": {
                         "type": "string",
@@ -77,24 +76,24 @@ class CreatePerformanceProfileTool(MCPTool):
                     },
                     "config_flags": {
                         "type": "object",
-                        "description": "Configuration flags as key-value pairs"
+                        "description": "Database configuration flags (e.g., max_connections, shared_buffers, work_mem)"
                     }
                 },
-                "required": ["label_name", "min_cpu", "min_memory"]
+                "required": ["label_name", "description_text", "min_cpu", "min_memory"]
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
         data = {
             "label_name": arguments.get("label_name"),
-            "description_text": arguments.get("description_text", ""),
+            "description_text": arguments.get("description_text"),
             "database_provider": arguments.get("database_provider", "PostgreSQL"),
             "database_version": arguments.get("database_version", "17"),
             "min_cpu": arguments.get("min_cpu"),
             "min_memory": arguments.get("min_memory")
         }
         
-        # Add config flags if provided
+        # Add optional config_flags if provided
         if arguments.get("config_flags"):
             data["config_flags"] = arguments.get("config_flags")
         
@@ -124,26 +123,26 @@ class CreatePerformanceProfileTool(MCPTool):
 
 
 class UpdatePerformanceProfileTool(MCPTool):
-    """Tool for updating a performance profile"""
+    """Tool for updating an existing performance profile"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "update_performance_profile",
-            "description": "Update performance profile",
+            "description": "Update an existing performance profile",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "performance_profile_id": {
+                    "profile_id": {
                         "type": "string",
                         "description": "Performance profile ID"
                     },
                     "label_name": {
                         "type": "string",
-                        "description": "Updated label name"
+                        "description": "Updated profile label name"
                     },
                     "description_text": {
                         "type": "string",
-                        "description": "Updated description text"
+                        "description": "Updated profile description"
                     },
                     "min_cpu": {
                         "type": "integer",
@@ -155,15 +154,15 @@ class UpdatePerformanceProfileTool(MCPTool):
                     },
                     "config_flags": {
                         "type": "object",
-                        "description": "Updated configuration flags"
+                        "description": "Updated database configuration flags"
                     }
                 },
-                "required": ["performance_profile_id"]
+                "required": ["profile_id"]
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
-        performance_profile_id = arguments.get("performance_profile_id")
+        profile_id = arguments.get("profile_id")
         
         data = {}
         if arguments.get("label_name"):
@@ -177,11 +176,7 @@ class UpdatePerformanceProfileTool(MCPTool):
         if arguments.get("config_flags"):
             data["config_flags"] = arguments.get("config_flags")
         
-        result = await self.client._make_api_call(
-            "PUT", 
-            f"/performance/{performance_profile_id}", 
-            data=data
-        )
+        result = await self.client._make_api_call("PUT", f"/performance/{profile_id}", data=data)
         
         if result.get("error"):
             return format_error_response(
@@ -190,84 +185,68 @@ class UpdatePerformanceProfileTool(MCPTool):
             )
         
         return format_success_response(
-            f"Performance profile {performance_profile_id} updated successfully",
+            f"Performance profile {profile_id} updated successfully",
             result
         )
 
 
-class GetPerformanceProfilesTool(MCPTool):
-    """Tool for getting available performance profiles from API"""
+class ApplyPerformanceProfileTool(MCPTool):
+    """Tool for applying a performance profile to a deployment"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
-            "name": "get_performance_profiles",
-            "description": "Get available performance profiles from the API",
+            "name": "apply_performance_profile",
+            "description": "Apply a performance profile to a deployment",
             "inputSchema": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    },
+                    "performance_profile_id": {
+                        "type": "string",
+                        "description": "Performance profile ID to apply"
+                    }
+                },
+                "required": ["deployment_id", "performance_profile_id"]
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
-        # Fetch performance profiles from the API
-        result = await self.client._make_api_call("GET", "/performance")
+        deployment_id = arguments.get("deployment_id")
+        performance_profile_id = arguments.get("performance_profile_id")
         
-        # Check if result is an error response (dict with error key)
-        if isinstance(result, dict) and result.get("error"):
+        result = await self.client._make_api_call(
+            "POST", 
+            f"/deploy/{deployment_id}/performance/{performance_profile_id}"
+        )
+        
+        if result.get("error"):
             return format_error_response(
-                "Failed to get performance profiles from API", 
+                "Failed to apply performance profile", 
                 result.get("message", "Unknown error")
             )
         
-        # Handle successful response (list of performance profiles)
-        if isinstance(result, list):
-            if not result:
-                return format_success_response(
-                    "No performance profiles found",
-                    {
-                        "profiles": [],
-                        "description": "No performance profiles are currently available. You may need to create some first."
-                    }
-                )
-            
-            # Format the profiles for easy use
-            profiles_info = []
-            profiles_dict = {}
-            
-            for profile in result:
-                profile_id = profile.get("id", "Unknown")
-                label_name = profile.get("label_name", "Unnamed")
-                database_provider = profile.get("database_provider", "Unknown")
-                database_version = profile.get("database_version", "Unknown")
-                
-                profiles_info.append(f"• {label_name} ({database_provider} {database_version}): {profile_id}")
-                profiles_dict[f"{database_provider.lower()}{database_version}"] = profile_id
-            
-            return format_success_response(
-                f"Found {len(result)} performance profiles",
-                {
-                    "profiles": profiles_dict,
-                    "profiles_list": result,
-                    "description": "Use these profile IDs when creating deployments. Each profile specifies the database provider, version, and performance characteristics."
-                }
-            )
-        else:
-            return format_success_response(
-                "Performance profiles retrieved successfully",
-                {
-                    "profiles": result,
-                    "description": "Use these profile IDs when creating deployments or configuring database performance settings."
-                }
-            )
+        return format_success_response(
+            f"Performance profile {performance_profile_id} applied to deployment {deployment_id}",
+            {
+                "deployment_id": deployment_id,
+                "performance_profile_id": performance_profile_id,
+                "applied_date": result.get("applied_date", "Unknown"),
+                "restart_required": result.get("restart_required", False),
+                "full_response": result
+            }
+        )
 
 
 class PerformanceModule(MCPModule):
-    """Performance module containing all performance profile-related tools"""
+    """Performance module containing all performance-related tools"""
     
     def _initialize_tools(self):
         self.tools = {
             "list_performance_profiles": ListPerformanceProfilesTool(self.client),
             "create_performance_profile": CreatePerformanceProfileTool(self.client),
             "update_performance_profile": UpdatePerformanceProfileTool(self.client),
-            "get_performance_profiles": GetPerformanceProfilesTool(self.client)
+            "apply_performance_profile": ApplyPerformanceProfileTool(self.client)
         }

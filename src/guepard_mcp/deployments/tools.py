@@ -2,7 +2,7 @@
 Deployments MCP Tools for Guepard Platform
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_response, format_error_response
 
 
@@ -12,7 +12,7 @@ class ListDeploymentsTool(MCPTool):
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "list_deployments",
-            "description": "Get all deployments",
+            "description": "Get all deployments for the authenticated user",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -155,7 +155,7 @@ class GetDeploymentTool(MCPTool):
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "get_deployment",
-            "description": "Get deployment details",
+            "description": "Get detailed information about a specific deployment",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -186,12 +186,12 @@ class GetDeploymentTool(MCPTool):
 
 
 class UpdateDeploymentTool(MCPTool):
-    """Tool for updating deployment"""
+    """Tool for updating deployment configuration"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "update_deployment",
-            "description": "Update deployment",
+            "description": "Update deployment configuration",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -214,6 +214,10 @@ class UpdateDeploymentTool(MCPTool):
                     "database_version": {
                         "type": "string",
                         "description": "Updated database version"
+                    },
+                    "performance_profile_id": {
+                        "type": "string",
+                        "description": "Updated performance profile ID"
                     }
                 },
                 "required": ["deployment_id"]
@@ -232,6 +236,8 @@ class UpdateDeploymentTool(MCPTool):
             data["database_provider"] = arguments.get("database_provider")
         if arguments.get("database_version"):
             data["database_version"] = arguments.get("database_version")
+        if arguments.get("performance_profile_id"):
+            data["performance_profile_id"] = arguments.get("performance_profile_id")
         
         result = await self.client._make_api_call("PUT", f"/deploy/{deployment_id}", data=data)
         
@@ -253,7 +259,7 @@ class DeleteDeploymentTool(MCPTool):
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "delete_deployment",
-            "description": "Delete deployment",
+            "description": "Delete a deployment and all associated resources",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -283,6 +289,141 @@ class DeleteDeploymentTool(MCPTool):
         )
 
 
+class UpdateDeploymentEventsTool(MCPTool):
+    """Tool for updating deployment events and status"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "update_deployment_events",
+            "description": "Update deployment events and status",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    },
+                    "events": {
+                        "type": "array",
+                        "description": "List of events to update",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Event type (e.g., deployment_updated, status_changed)"
+                                },
+                                "timestamp": {
+                                    "type": "string",
+                                    "description": "Event timestamp in ISO format"
+                                },
+                                "data": {
+                                    "type": "object",
+                                    "description": "Event data payload"
+                                }
+                            },
+                            "required": ["type", "timestamp"]
+                        }
+                    }
+                },
+                "required": ["deployment_id", "events"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        events = arguments.get("events", [])
+        
+        data = {
+            "events": events
+        }
+        
+        result = await self.client._make_api_call("PUT", f"/deploy/{deployment_id}/events", data=data)
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to update deployment events", 
+                result.get("message", "Unknown error")
+            )
+        
+        return format_success_response(
+            f"Deployment events updated successfully for {deployment_id}",
+            result
+        )
+
+
+class GetDeploymentStatusTool(MCPTool):
+    """Tool for getting current status of a deployment"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "get_deployment_status",
+            "description": "Get current status of a deployment",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    }
+                },
+                "required": ["deployment_id"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        
+        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/status")
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to get deployment status", 
+                result.get("message", "Unknown error")
+            )
+        
+        return format_success_response(
+            f"Deployment status retrieved for {deployment_id}",
+            result
+        )
+
+
+class GetComputeStatusTool(MCPTool):
+    """Tool for getting compute resource status for deployment"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "get_compute_status",
+            "description": "Get compute resource status for deployment",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    }
+                },
+                "required": ["deployment_id"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        
+        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/compute")
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to get compute status", 
+                result.get("message", "Unknown error")
+            )
+        
+        return format_success_response(
+            f"Compute status retrieved for deployment {deployment_id}",
+            result
+        )
+
+
 class DeploymentsModule(MCPModule):
     """Deployments module containing all deployment-related tools"""
     
@@ -292,5 +433,8 @@ class DeploymentsModule(MCPModule):
             "create_deployment": CreateDeploymentTool(self.client),
             "get_deployment": GetDeploymentTool(self.client),
             "update_deployment": UpdateDeploymentTool(self.client),
-            "delete_deployment": DeleteDeploymentTool(self.client)
+            "delete_deployment": DeleteDeploymentTool(self.client),
+            "update_deployment_events": UpdateDeploymentEventsTool(self.client),
+            "get_deployment_status": GetDeploymentStatusTool(self.client),
+            "get_compute_status": GetComputeStatusTool(self.client)
         }

@@ -7,12 +7,12 @@ from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_re
 
 
 class ListNodesTool(MCPTool):
-    """Tool for listing all nodes"""
+    """Tool for listing all available compute nodes"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "list_nodes",
-            "description": "Get all nodes",
+            "description": "Get all available compute nodes",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -29,6 +29,7 @@ class ListNodesTool(MCPTool):
                 result.get("message", "Unknown error")
             )
         
+        # Handle successful response (list of nodes)
         if isinstance(result, list):
             count = len(result)
             return format_success_response(f"Found {count} nodes", result)
@@ -36,13 +37,44 @@ class ListNodesTool(MCPTool):
             return format_success_response("Nodes retrieved successfully", result)
 
 
+class ListAccessibleNodesTool(MCPTool):
+    """Tool for listing nodes accessible to the authenticated user"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "list_accessible_nodes",
+            "description": "Get nodes accessible to the authenticated user",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        result = await self.client._make_api_call("GET", "/deploy/accessible-nodes")
+        
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
+            return format_error_response(
+                "Failed to get accessible nodes", 
+                result.get("message", "Unknown error")
+            )
+        
+        # Handle successful response (list of nodes)
+        if isinstance(result, list):
+            count = len(result)
+            return format_success_response(f"Found {count} accessible nodes", result)
+        else:
+            return format_success_response("Accessible nodes retrieved successfully", result)
+
+
 class CreateNodeTool(MCPTool):
-    """Tool for creating a new node"""
+    """Tool for creating a new compute node"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "create_node",
-            "description": "Create a new node",
+            "description": "Create a new compute node",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -52,7 +84,9 @@ class CreateNodeTool(MCPTool):
                     },
                     "node_type": {
                         "type": "string",
-                        "description": "Node type"
+                        "description": "Node type",
+                        "enum": ["compute", "storage"],
+                        "default": "compute"
                     },
                     "node_pool": {
                         "type": "string",
@@ -69,7 +103,9 @@ class CreateNodeTool(MCPTool):
                     },
                     "hosting_provider": {
                         "type": "string",
-                        "description": "Hosting provider"
+                        "description": "Hosting provider",
+                        "enum": ["aws", "gcp", "azure"],
+                        "default": "aws"
                     },
                     "memory": {
                         "type": "integer",
@@ -81,34 +117,31 @@ class CreateNodeTool(MCPTool):
                     },
                     "storage": {
                         "type": "integer",
-                        "description": "Storage size in GB"
+                        "description": "Storage in GB"
                     },
                     "created_by": {
                         "type": "string",
                         "description": "User ID who created the node"
                     }
                 },
-                "required": ["label_name", "node_type", "memory", "cpu", "storage"]
+                "required": ["label_name", "node_type", "datacenter", "region", "hosting_provider", "memory", "cpu", "storage"]
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
         data = {
             "label_name": arguments.get("label_name"),
-            "node_type": arguments.get("node_type"),
+            "node_type": arguments.get("node_type", "compute"),
             "node_pool": arguments.get("node_pool", "default"),
+            "datacenter": arguments.get("datacenter"),
+            "region": arguments.get("region"),
+            "hosting_provider": arguments.get("hosting_provider", "aws"),
             "memory": arguments.get("memory"),
             "cpu": arguments.get("cpu"),
             "storage": arguments.get("storage")
         }
         
-        # Add optional fields if provided
-        if arguments.get("datacenter"):
-            data["datacenter"] = arguments.get("datacenter")
-        if arguments.get("region"):
-            data["region"] = arguments.get("region")
-        if arguments.get("hosting_provider"):
-            data["hosting_provider"] = arguments.get("hosting_provider")
+        # Add optional created_by if provided
         if arguments.get("created_by"):
             data["created_by"] = arguments.get("created_by")
         
@@ -128,22 +161,23 @@ class CreateNodeTool(MCPTool):
             {
                 "node_id": node_id,
                 "node_name": node_name,
-                "node_type": arguments.get("node_type"),
-                "memory": arguments.get("memory"),
-                "cpu": arguments.get("cpu"),
-                "storage": arguments.get("storage"),
+                "node_type": arguments.get("node_type", "compute"),
+                "status": result.get("status", "Unknown"),
+                "datacenter": arguments.get("datacenter"),
+                "region": arguments.get("region"),
+                "hosting_provider": arguments.get("hosting_provider", "aws"),
                 "full_response": result
             }
         )
 
 
 class GetNodeTool(MCPTool):
-    """Tool for getting node details"""
+    """Tool for getting detailed information about a specific node"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "get_node",
-            "description": "Get node details",
+            "description": "Get detailed information about a specific node",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -179,6 +213,7 @@ class NodesModule(MCPModule):
     def _initialize_tools(self):
         self.tools = {
             "list_nodes": ListNodesTool(self.client),
+            "list_accessible_nodes": ListAccessibleNodesTool(self.client),
             "create_node": CreateNodeTool(self.client),
             "get_node": GetNodeTool(self.client)
         }

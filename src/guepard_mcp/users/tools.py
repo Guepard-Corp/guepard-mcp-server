@@ -43,13 +43,78 @@ class ListDatabaseUsersTool(MCPTool):
             return format_success_response(f"Database users retrieved for deployment {deployment_id}", result)
 
 
+class BatchCreateDatabaseUsersTool(MCPTool):
+    """Tool for creating multiple database users at once"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "batch_create_database_users",
+            "description": "Create multiple database users at once",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    },
+                    "users": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string",
+                                    "description": "Database username"
+                                },
+                                "password": {
+                                    "type": "string",
+                                    "description": "Database password"
+                                },
+                                "privileges": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string",
+                                        "enum": ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "INDEX", "REFERENCES"]
+                                    },
+                                    "description": "List of privileges to grant"
+                                }
+                            },
+                            "required": ["username", "password"]
+                        },
+                        "description": "List of users to create"
+                    }
+                },
+                "required": ["deployment_id", "users"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        users = arguments.get("users")
+        
+        data = {"users": users}
+        
+        result = await self.client._make_api_call("POST", f"/deploy/{deployment_id}/users", data=data)
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to create database users", 
+                result.get("message", "Unknown error")
+            )
+        
+        return format_success_response(
+            f"Batch created {len(users)} database users for deployment {deployment_id}",
+            result
+        )
+
+
 class CreateDatabaseUserTool(MCPTool):
-    """Tool for creating a database user"""
+    """Tool for creating a single database user"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "create_database_user",
-            "description": "Create database user",
+            "description": "Create a new database user",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -92,8 +157,7 @@ class CreateDatabaseUserTool(MCPTool):
         
         result = await self.client._make_api_call("POST", f"/deploy/{deployment_id}/user", data=data)
         
-        # Check if result is an error response (dict with error key)
-        if isinstance(result, dict) and result.get("error"):
+        if result.get("error"):
             return format_error_response(
                 "Failed to create database user", 
                 result.get("message", "Unknown error")
@@ -101,12 +165,7 @@ class CreateDatabaseUserTool(MCPTool):
         
         return format_success_response(
             f"Database user '{username}' created successfully",
-            {
-                "deployment_id": deployment_id,
-                "username": username,
-                "privileges": privileges,
-                "full_response": result
-            }
+            result
         )
 
 
@@ -376,6 +435,7 @@ class UsersModule(MCPModule):
     def _initialize_tools(self):
         self.tools = {
             "list_database_users": ListDatabaseUsersTool(self.client),
+            "batch_create_database_users": BatchCreateDatabaseUsersTool(self.client),
             "create_database_user": CreateDatabaseUserTool(self.client),
             "update_database_user": UpdateDatabaseUserTool(self.client),
             "delete_database_user": DeleteDatabaseUserTool(self.client),
