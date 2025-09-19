@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from guepard_mcp.logs.tools import GetDeploymentLogsTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id
 
 async def test_get_deployment_logs():
     """Test get_deployment_logs tool with real API calls"""

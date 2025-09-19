@@ -15,16 +15,19 @@ load_dotenv()
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from guepard_mcp.compute.tools import StopComputeTool
+from guepard_mcp.compute.tools import StopComputeTool, GetComputeStatusTool
+from guepard_mcp.deployments.tools import ListDeploymentsTool
 from guepard_mcp.utils.base import GuepardAPIClient
 
 async def test_stop_compute():
     """Test stop_compute tool with real API calls"""
     print("🧪 Testing stop_compute tool with real API calls...")
     
-    # Create tool instance
+    # Create tool instances
     client = GuepardAPIClient()
-    tool = StopComputeTool(client)
+    stop_tool = StopComputeTool(client)
+    status_tool = GetComputeStatusTool(client)
+    list_tool = ListDeploymentsTool(client)
     
     # Check if we have credentials
     if not client.access_token:
@@ -38,13 +41,57 @@ async def test_stop_compute():
     # Initialize HTTP session
     await client.connect()
     
+    # Get real deployment IDs from API
+    print("\n  📋 Fetching real deployment IDs from API...")
+    try:
+        deployments_result = await list_tool.execute({"limit": 5})
+        print(f"    Deployments result: {deployments_result}")
+        
+        # Extract deployment IDs from the result
+        # The result should contain JSON data with deployment objects
+        import json
+        if "✅" in deployments_result and "[" in deployments_result:
+            # Extract JSON part from the response
+            json_start = deployments_result.find("[")
+            json_end = deployments_result.rfind("]") + 1
+            if json_start != -1 and json_end != -1:
+                json_str = deployments_result[json_start:json_end]
+                deployments = json.loads(json_str)
+                if deployments and len(deployments) > 0:
+                    real_deployment_id = deployments[0]["id"]
+                    print(f"    Using real deployment ID: {real_deployment_id}")
+                else:
+                    print("    ❌ No deployments found")
+                    return False
+            else:
+                print("    ❌ Could not parse deployments JSON")
+                return False
+        else:
+            print("    ❌ Could not fetch deployments")
+            return False
+    except Exception as e:
+        print(f"    ❌ Failed to fetch deployments: {e}")
+        return False
+    
     # Test 1: Stop compute for existing deployment
     print("\n  Testing stop compute for existing deployment...")
+    deployment_id = real_deployment_id
     try:
-        result = await tool.execute({
-            "deployment_id": "test-deploy-123"
-        })
-        print(f"    Response: {result}")
+        # First check status before stopping
+        print("    📊 Checking status BEFORE stop...")
+        status_before = await status_tool.execute({"deployment_id": deployment_id})
+        print(f"    Status before: {status_before}")
+        
+        # Stop compute
+        print("    🛑 Stopping compute...")
+        result = await stop_tool.execute({"deployment_id": deployment_id})
+        print(f"    Stop result: {result}")
+        
+        # Check status after stopping
+        print("    📊 Checking status AFTER stop...")
+        status_after = await status_tool.execute({"deployment_id": deployment_id})
+        print(f"    Status after: {status_after}")
+        
         print("  ✅ Stop compute test completed")
     except Exception as e:
         print(f"    ❌ Stop compute test failed: {e}")
@@ -53,8 +100,8 @@ async def test_stop_compute():
     # Test 2: Stop compute for non-existent deployment
     print("\n  Testing stop compute for non-existent deployment...")
     try:
-        result = await tool.execute({
-            "deployment_id": "non-existent-deploy-999"
+        result = await stop_tool.execute({
+            "deployment_id": "99999999-9999-9999-9999-999999999999"
         })
         print(f"    Response: {result}")
         print("  ✅ Non-existent deployment test completed")
@@ -65,7 +112,7 @@ async def test_stop_compute():
     # Test 3: Missing deployment_id parameter
     print("\n  Testing missing deployment_id parameter...")
     try:
-        result = await tool.execute({})
+        result = await stop_tool.execute({})
         print(f"    Response: {result}")
         print("  ✅ Missing deployment_id test completed")
     except Exception as e:

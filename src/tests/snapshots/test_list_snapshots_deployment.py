@@ -15,8 +15,12 @@ load_dotenv()
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from guepard_mcp.snapshots.tools import ListSnapshotsDeploymentTool
+from guepard_mcp.snapshots.tools import ListSnapshotsForDeploymentTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id
 
 async def test_list_snapshots_deployment():
     """Test list_snapshots_deployment tool with real API calls"""
@@ -24,7 +28,7 @@ async def test_list_snapshots_deployment():
     
     # Create tool instance
     client = GuepardAPIClient()
-    tool = ListSnapshotsDeploymentTool(client)
+    tool = ListSnapshotsForDeploymentTool(client)
     
     # Check if we have credentials
     if not client.access_token:
@@ -38,11 +42,18 @@ async def test_list_snapshots_deployment():
     # Initialize HTTP session
     await client.connect()
     
+    # Get real deployment ID from API
+    try:
+        real_deployment_id = await get_real_deployment_id(client)
+    except Exception as e:
+        print(f"    ❌ Failed to get real deployment ID: {e}")
+        return False
+    
     # Test 1: List snapshots for existing deployment
     print("\n  Testing list snapshots for existing deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "test-deploy-123"
+            "deployment_id": real_deployment_id
         })
         print(f"    Response: {result}")
         print("  ✅ List snapshots test completed")
@@ -54,7 +65,7 @@ async def test_list_snapshots_deployment():
     print("\n  Testing list snapshots with limit...")
     try:
         result = await tool.execute({
-            "deployment_id": "test-deploy-123",
+            "deployment_id": real_deployment_id,
             "limit": 5
         })
         print(f"    Response: {result}")

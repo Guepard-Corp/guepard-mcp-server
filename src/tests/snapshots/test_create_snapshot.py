@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from guepard_mcp.snapshots.tools import CreateSnapshotTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id
 
 async def test_create_snapshot():
     """Test create_snapshot tool with real API calls"""
@@ -38,11 +42,18 @@ async def test_create_snapshot():
     # Initialize HTTP session
     await client.connect()
     
+    # Get real deployment ID from API
+    try:
+        real_deployment_id = await get_real_deployment_id(client)
+    except Exception as e:
+        print(f"    ❌ Failed to get real deployment ID: {e}")
+        return False
+    
     # Test 1: Create snapshot for existing deployment
     print("\n  Testing create snapshot for existing deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "test-deploy-123",
+            "deployment_id": real_deployment_id,
             "name": "Test Snapshot"
         })
         print(f"    Response: {result}")

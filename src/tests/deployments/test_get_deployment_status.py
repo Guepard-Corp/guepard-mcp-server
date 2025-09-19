@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from guepard_mcp.deployments.tools import GetDeploymentStatusTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id
 
 async def test_get_deployment_status():
     """Test get_deployment_status tool with real API calls"""
@@ -38,11 +42,18 @@ async def test_get_deployment_status():
     # Initialize HTTP session
     await client.connect()
     
+    # Get real deployment ID from API
+    try:
+        real_deployment_id = await get_real_deployment_id(client)
+    except Exception as e:
+        print(f"    ❌ Failed to get real deployment ID: {e}")
+        return False
+    
     # Test 1: Get status of existing deployment
     print("\n  Testing get status of existing deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "test-deploy-123"
+            "deployment_id": real_deployment_id
         })
         print(f"    Response: {result}")
         print("  ✅ Get existing deployment status test completed")
@@ -54,7 +65,7 @@ async def test_get_deployment_status():
     print("\n  Testing get status of non-existent deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "non-existent-deploy-999"
+            "deployment_id": get_fake_deployment_id()
         })
         print(f"    Response: {result}")
         print("  ✅ Get non-existent deployment status test completed")

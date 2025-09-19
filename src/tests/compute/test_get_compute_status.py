@@ -16,15 +16,17 @@ load_dotenv()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from guepard_mcp.compute.tools import GetComputeStatusTool
+from guepard_mcp.deployments.tools import ListDeploymentsTool
 from guepard_mcp.utils.base import GuepardAPIClient
 
 async def test_get_compute_status():
     """Test get_compute_status tool with real API calls"""
     print("🧪 Testing get_compute_status tool with real API calls...")
     
-    # Create tool instance
+    # Create tool instances
     client = GuepardAPIClient()
     tool = GetComputeStatusTool(client)
+    list_tool = ListDeploymentsTool(client)
     
     # Check if we have credentials
     if not client.access_token:
@@ -38,11 +40,42 @@ async def test_get_compute_status():
     # Initialize HTTP session
     await client.connect()
     
+    # Get real deployment IDs from API
+    print("\n  📋 Fetching real deployment IDs from API...")
+    try:
+        deployments_result = await list_tool.execute({"limit": 5})
+        print(f"    Deployments result: {deployments_result}")
+        
+        # Extract deployment IDs from the result
+        import json
+        if "✅" in deployments_result and "[" in deployments_result:
+            # Extract JSON part from the response
+            json_start = deployments_result.find("[")
+            json_end = deployments_result.rfind("]") + 1
+            if json_start != -1 and json_end != -1:
+                json_str = deployments_result[json_start:json_end]
+                deployments = json.loads(json_str)
+                if deployments and len(deployments) > 0:
+                    real_deployment_id = deployments[0]["id"]
+                    print(f"    Using real deployment ID: {real_deployment_id}")
+                else:
+                    print("    ❌ No deployments found")
+                    return False
+            else:
+                print("    ❌ Could not parse deployments JSON")
+                return False
+        else:
+            print("    ❌ Could not fetch deployments")
+            return False
+    except Exception as e:
+        print(f"    ❌ Failed to fetch deployments: {e}")
+        return False
+    
     # Test 1: Get compute status for existing deployment
     print("\n  Testing get compute status for existing deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "test-deploy-123"
+            "deployment_id": real_deployment_id
         })
         print(f"    Response: {result}")
         print("  ✅ Get compute status test completed")
@@ -54,7 +87,7 @@ async def test_get_compute_status():
     print("\n  Testing get compute status for non-existent deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "non-existent-deploy-999"
+            "deployment_id": "99999999-9999-9999-9999-999999999999"
         })
         print(f"    Response: {result}")
         print("  ✅ Non-existent deployment test completed")
