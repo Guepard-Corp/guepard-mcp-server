@@ -91,9 +91,9 @@ class ToolConfig:
 
 # Predefined configurations for common use cases
 PREDEFINED_CONFIGS = {
-    "basic_v1": {
+    "v1": {
         "description": "Basic v1 - Essential deployment management tools only",
-        "enabled_modules": ["deployments", "compute", "performance", "image_providers"],
+        "enabled_modules": ["deployments", "compute", "performance", "image_providers, checkouts, snapshots, branches"],
         "enabled_tools": [
             "test_connection",
 

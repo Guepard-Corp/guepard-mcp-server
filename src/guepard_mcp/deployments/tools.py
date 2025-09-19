@@ -288,33 +288,114 @@ class GetDeploymentTool(MCPTool):
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "get_deployment",
-            "description": "Get detailed information about a specific deployment",
+            "description": "Get detailed information about a specific deployment. Can be retrieved by deployment_id, repository_name, or latest deployment.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "deployment_id": {
                         "type": "string",
-                        "description": "Deployment ID"
+                        "description": "Deployment ID (optional if repository_name or latest is provided)"
+                    },
+                    "repository_name": {
+                        "type": "string",
+                        "description": "Repository name to find deployment (optional)"
+                    },
+                    "latest": {
+                        "type": "boolean",
+                        "description": "Get the latest deployment (optional)"
                     }
-                },
-                "required": ["deployment_id"]
+                }
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
         deployment_id = arguments.get("deployment_id")
+        repository_name = arguments.get("repository_name")
+        latest = arguments.get("latest", False)
         
-        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}")
-        
-        if result.get("error"):
+        # Validate that at least one parameter is provided
+        if not deployment_id and not repository_name and not latest:
             return format_error_response(
                 "Failed to get deployment", 
+                "At least one parameter is required: deployment_id, repository_name, or latest"
+            )
+        
+        # If deployment_id is provided, use it directly
+        if deployment_id:
+            result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}")
+            
+            # Check if result is an error response (dict with error key)
+            if isinstance(result, dict) and result.get("error"):
+                return format_error_response(
+                    "Failed to get deployment", 
+                    result.get("message", "Unknown error")
+                )
+            
+            # Handle successful response
+            return format_success_response(
+                f"Deployment {deployment_id} retrieved successfully",
+                result
+            )
+        
+        # If repository_name or latest is provided, get all deployments and filter
+        result = await self.client._make_api_call("GET", "/deploy", params={"limit": 100})
+        
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
+            return format_error_response(
+                "Failed to get deployments", 
                 result.get("message", "Unknown error")
             )
         
+        # Handle successful response (list of deployments)
+        if not isinstance(result, list):
+            return format_error_response(
+                "Failed to get deployments", 
+                "Unexpected response format"
+            )
+        
+        # Filter deployments based on criteria
+        filtered_deployments = result
+        
+        if repository_name:
+            filtered_deployments = [d for d in filtered_deployments if d.get("repository_name") == repository_name]
+        
+        if not filtered_deployments:
+            if repository_name:
+                return format_error_response(
+                    "Failed to get deployment", 
+                    f"No deployment found for repository '{repository_name}'"
+                )
+            else:
+                return format_error_response(
+                    "Failed to get deployment", 
+                    "No deployments found"
+                )
+        
+        # If latest is requested, get the most recent deployment
+        if latest:
+            # Sort by created_date (most recent first)
+            filtered_deployments.sort(key=lambda x: x.get("created_date", ""), reverse=True)
+            selected_deployment = filtered_deployments[0]
+            
+            return format_success_response(
+                f"Latest deployment retrieved successfully",
+                selected_deployment
+            )
+        
+        # If repository_name only, return the first match
+        if repository_name:
+            selected_deployment = filtered_deployments[0]
+            
+            return format_success_response(
+                f"Deployment for repository '{repository_name}' retrieved successfully",
+                selected_deployment
+            )
+        
+        # Fallback: return all filtered deployments
         return format_success_response(
-            f"Deployment {deployment_id} retrieved successfully",
-            result
+            f"Found {len(filtered_deployments)} deployments",
+            filtered_deployments
         )
 
 

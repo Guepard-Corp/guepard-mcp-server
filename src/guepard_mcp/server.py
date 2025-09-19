@@ -33,8 +33,10 @@ from .checkouts.tools import CheckoutsModule
 from .shadows.tools import ShadowsModule
 from .schema.tools import SchemaModule
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

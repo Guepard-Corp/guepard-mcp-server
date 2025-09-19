@@ -10,8 +10,11 @@ from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root
+import os
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
 
