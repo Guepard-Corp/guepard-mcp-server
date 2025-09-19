@@ -87,7 +87,7 @@ class CreateBranchFromSnapshotTool(MCPTool):
                     "is_ephemeral": {
                         "type": "boolean",
                         "description": "Whether the branch is ephemeral",
-                        "default": False
+                        "default": True
                     }
                 },
                 "required": ["deployment_id", "branch_id", "snapshot_id", "branch_name"]

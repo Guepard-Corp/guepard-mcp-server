@@ -22,15 +22,20 @@ class ListImageProvidersTool(MCPTool):
     async def execute(self, arguments: Dict[str, Any]) -> str:
         result = await self.client._make_api_call("GET", "/image-providers")
         
-        if result.get("error"):
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
             return format_error_response(
                 "Failed to get image providers", 
                 result.get("message", "Unknown error")
             )
         
+        # Handle successful response (list of image providers)
         if isinstance(result, list):
             count = len(result)
             return format_success_response(f"Found {count} image providers", result)
+        elif isinstance(result, dict):
+            # Handle case where API returns a dict with image providers data
+            return format_success_response("Image providers retrieved successfully", result)
         else:
             return format_success_response("Image providers retrieved successfully", result)
 

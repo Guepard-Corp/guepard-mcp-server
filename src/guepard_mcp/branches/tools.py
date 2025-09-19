@@ -103,65 +103,6 @@ class UpdateBranchTool(MCPTool):
         )
 
 
-class CheckoutBranchTool(MCPTool):
-    """Tool for checking out to a specific branch"""
-    
-    def get_tool_definition(self) -> Dict[str, Any]:
-        return {
-            "name": "checkout_branch",
-            "description": "Checkout to a specific branch",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "deployment_id": {
-                        "type": "string",
-                        "description": "Deployment ID"
-                    },
-                    "branch_id": {
-                        "type": "string",
-                        "description": "Branch ID"
-                    },
-                    "snapshot_id": {
-                        "type": "string",
-                        "description": "Snapshot ID to checkout to"
-                    }
-                },
-                "required": ["deployment_id", "branch_id", "snapshot_id"]
-            }
-        }
-    
-    async def execute(self, arguments: Dict[str, Any]) -> str:
-        deployment_id = arguments.get("deployment_id")
-        branch_id = arguments.get("branch_id")
-        snapshot_id = arguments.get("snapshot_id")
-        
-        data = {
-            "snapshot_id": snapshot_id
-        }
-        
-        result = await self.client._make_api_call(
-            "POST", 
-            f"/deploy/{deployment_id}/{branch_id}/checkout", 
-            data=data
-        )
-        
-        if result.get("error"):
-            return format_error_response(
-                "Failed to checkout branch", 
-                result.get("message", "Unknown error")
-            )
-        
-        return format_success_response(
-            f"Branch {branch_id} checked out to snapshot {snapshot_id}",
-            {
-                "deployment_id": deployment_id,
-                "branch_id": branch_id,
-                "snapshot_id": snapshot_id,
-                "full_response": result
-            }
-        )
-
-
 class CreateBranchFromSnapshotTool(MCPTool):
     """Tool for creating a new branch from a specific snapshot"""
     
@@ -242,6 +183,5 @@ class BranchesModule(MCPModule):
         self.tools = {
             "list_branches": ListBranchesTool(self.client),
             "update_branch": UpdateBranchTool(self.client),
-            "checkout_branch": CheckoutBranchTool(self.client),
             "create_branch_from_snapshot": CreateBranchFromSnapshotTool(self.client)
         }
