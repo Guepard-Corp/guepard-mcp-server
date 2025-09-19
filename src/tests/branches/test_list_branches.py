@@ -55,8 +55,10 @@ async def test_list_branches():
     # Test 2: List branches with deployment filter
     print("\n  Testing list branches with deployment filter...")
     try:
+        # Get a real deployment ID
+        real_deployment_id = await get_real_deployment_id(client)
         result = await tool.execute({
-            "deployment_id": "test-deploy-123"
+            "deployment_id": real_deployment_id
         })
         print(f"    Response: {result}")
         print("  ✅ List branches with deployment filter test completed")
@@ -79,8 +81,10 @@ async def test_list_branches():
     # Test 4: List branches with both filters
     print("\n  Testing list branches with both filters...")
     try:
+        # Get a real deployment ID
+        real_deployment_id = await get_real_deployment_id(client)
         result = await tool.execute({
-            "deployment_id": "test-deploy-123",
+            "deployment_id": real_deployment_id,
             "limit": 3
         })
         print(f"    Response: {result}")

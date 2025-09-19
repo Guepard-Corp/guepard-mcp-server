@@ -15,16 +15,20 @@ load_dotenv()
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from guepard_mcp.snapshots.tools import ListSnapshotsBranchTool
+from guepard_mcp.snapshots.tools import ListSnapshotsForBranchTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id, get_first_branch_id
 
 async def test_list_snapshots_branch():
-    """Test list_snapshots_branch tool with real API calls"""
+    """Test list_snapshots_branch tool with real API calls following proper flow"""
     print("🧪 Testing list_snapshots_branch tool with real API calls...")
     
     # Create tool instance
     client = GuepardAPIClient()
-    tool = ListSnapshotsBranchTool(client)
+    tool = ListSnapshotsForBranchTool(client)
     
     # Check if we have credentials
     if not client.access_token:
@@ -38,71 +42,65 @@ async def test_list_snapshots_branch():
     # Initialize HTTP session
     await client.connect()
     
-    # Test 1: List snapshots for existing branch
-    print("\n  Testing list snapshots for existing branch...")
     try:
+        # Step 1: Get first deployment
+        print("\n  Step 1: Getting first deployment...")
+        real_deployment_id = await get_real_deployment_id(client)
+        print(f"    ✅ Found deployment: {real_deployment_id}")
+        
+        # Step 2: Get first branch from that deployment
+        print("\n  Step 2: Getting first branch from deployment...")
+        real_branch_id = await get_first_branch_id(client, real_deployment_id)
+        print(f"    ✅ Found branch: {real_branch_id}")
+        
+        # Step 3: List snapshots for the real branch
+        print("\n  Step 3: Testing list snapshots for real branch...")
         result = await tool.execute({
-            "branch_id": "test-branch-123"
+            "deployment_id": real_deployment_id,
+            "branch_id": real_branch_id
         })
         print(f"    Response: {result}")
-        print("  ✅ List snapshots for branch test completed")
-    except Exception as e:
-        print(f"    ❌ List snapshots for branch test failed: {e}")
-        return False
-    
-    # Test 2: List snapshots with limit
-    print("\n  Testing list snapshots with limit...")
-    try:
+        print("  ✅ List snapshots for real branch test completed")
+        
+        # Test 4: List snapshots for non-existent branch
+        print("\n  Step 4: Testing list snapshots for non-existent branch...")
         result = await tool.execute({
-            "branch_id": "test-branch-123",
-            "limit": 5
-        })
-        print(f"    Response: {result}")
-        print("  ✅ List snapshots with limit test completed")
-    except Exception as e:
-        print(f"    ❌ List snapshots with limit test failed: {e}")
-        return False
-    
-    # Test 3: List snapshots for non-existent branch
-    print("\n  Testing list snapshots for non-existent branch...")
-    try:
-        result = await tool.execute({
+            "deployment_id": real_deployment_id,
             "branch_id": "non-existent-branch-999"
         })
         print(f"    Response: {result}")
         print("  ✅ Non-existent branch test completed")
-    except Exception as e:
-        print(f"    ❌ Non-existent branch test failed: {e}")
-        return False
-    
-    # Test 4: Missing branch_id parameter
-    print("\n  Testing missing branch_id parameter...")
-    try:
+        
+        # Test 5: Missing required parameters
+        print("\n  Step 5: Testing missing required parameters...")
         result = await tool.execute({})
         print(f"    Response: {result}")
-        print("  ✅ Missing branch_id test completed")
+        print("  ✅ Missing parameters test completed")
+        
     except Exception as e:
-        print(f"    ❌ Missing branch_id test failed: {e}")
+        print(f"    ❌ Test failed: {e}")
         return False
-    
-    # Clean up
-    await client.disconnect()
+    finally:
+        # Clean up
+        await client.disconnect()
     
     print("\n" + "="*60)
     print("📊 SYNTHESIS - List Snapshots Branch Test Results")
     print("="*60)
     print("✅ Tested scenarios:")
-    print("   • List snapshots for existing branch")
-    print("   • List snapshots with limit")
+    print("   • Get first deployment from API")
+    print("   • Get first branch from that deployment")
+    print("   • List snapshots for real branch")
     print("   • List snapshots for non-existent branch")
-    print("   • Handle missing branch_id parameter")
-    print(f"\n🔗 API Endpoint: {client.api_base_url}/snapshots/branch/{{branch_id}}")
+    print("   • Handle missing required parameters")
+    print(f"\n🔗 API Endpoint: {client.api_base_url}/deploy/{{deployment_id}}/{{branch_id}}/snap")
     print(f"🔑 Authentication: {'✅ Token present' if client.access_token else '❌ No token'}")
     print("\n📝 Notes:")
     print("   • All tests completed successfully")
     print("   • Real API calls made to local server")
     print("   • HTTP session properly initialized and cleaned up")
     print("   • Error handling tested for various scenarios")
+    print("   • Used proper flow: deployment → branch → snapshots")
     print("="*60)
     
     print("\n✅ All list_snapshots_branch real API tests completed!")

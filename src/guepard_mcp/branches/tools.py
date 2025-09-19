@@ -146,6 +146,16 @@ class CreateBranchFromSnapshotTool(MCPTool):
         branch_name = arguments.get("branch_name")
         is_ephemeral = arguments.get("is_ephemeral", False)
         
+        # Validate required parameters
+        if not deployment_id:
+            return format_error_response("Missing required parameter", "deployment_id is required")
+        if not branch_id:
+            return format_error_response("Missing required parameter", "branch_id is required")
+        if not snapshot_id:
+            return format_error_response("Missing required parameter", "snapshot_id is required")
+        if not branch_name:
+            return format_error_response("Missing required parameter", "branch_name is required")
+        
         data = {
             "branch_name": branch_name,
             "is_ephemeral": is_ephemeral

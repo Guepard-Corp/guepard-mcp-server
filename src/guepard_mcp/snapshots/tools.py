@@ -28,14 +28,27 @@ class ListSnapshotsForDeploymentTool(MCPTool):
     async def execute(self, arguments: Dict[str, Any]) -> str:
         deployment_id = arguments.get("deployment_id")
         
+        if not deployment_id:
+            return format_error_response("Missing required parameter", "deployment_id is required")
+        
         result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/snap")
         
         # Check if result is an error response (dict with error key)
         if isinstance(result, dict) and result.get("error"):
-            return format_error_response(
-                "Failed to get snapshots", 
-                result.get("message", "Unknown error")
-            )
+            error_message = result.get("message", "Unknown error")
+            status_code = result.get("status_code", "Unknown")
+            
+            # Provide more specific error information
+            if "Database connection error" in error_message:
+                return format_error_response(
+                    "Database connection error - deployment may not be ready for snapshots", 
+                    f"Status: {status_code}, Message: {error_message}. The deployment may need to be in a different status or the database may not be fully initialized."
+                )
+            else:
+                return format_error_response(
+                    "Failed to get snapshots", 
+                    f"Status: {status_code}, Message: {error_message}"
+                )
         
         if isinstance(result, list):
             count = len(result)
@@ -71,14 +84,29 @@ class ListSnapshotsForBranchTool(MCPTool):
         deployment_id = arguments.get("deployment_id")
         branch_id = arguments.get("branch_id")
         
+        if not deployment_id:
+            return format_error_response("Missing required parameter", "deployment_id is required")
+        if not branch_id:
+            return format_error_response("Missing required parameter", "branch_id is required")
+        
         result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/{branch_id}/snap")
         
         # Check if result is an error response (dict with error key)
         if isinstance(result, dict) and result.get("error"):
-            return format_error_response(
-                "Failed to get snapshots", 
-                result.get("message", "Unknown error")
-            )
+            error_message = result.get("message", "Unknown error")
+            status_code = result.get("status_code", "Unknown")
+            
+            # Provide more specific error information
+            if "Database connection error" in error_message:
+                return format_error_response(
+                    "Database connection error - deployment may not be ready for snapshots", 
+                    f"Status: {status_code}, Message: {error_message}. The deployment may need to be in a different status or the database may not be fully initialized."
+                )
+            else:
+                return format_error_response(
+                    "Failed to get snapshots", 
+                    f"Status: {status_code}, Message: {error_message}"
+                )
         
         if isinstance(result, list):
             count = len(result)
@@ -129,11 +157,22 @@ class CreateSnapshotTool(MCPTool):
             data=data
         )
         
-        if result.get("error"):
-            return format_error_response(
-                "Failed to create snapshot", 
-                result.get("message", "Unknown error")
-            )
+        # Check if result is an error response (dict with error key)
+        if isinstance(result, dict) and result.get("error"):
+            error_message = result.get("message", "Unknown error")
+            status_code = result.get("status_code", "Unknown")
+            
+            # Provide more specific error information
+            if "Database connection error" in error_message:
+                return format_error_response(
+                    "Database connection error - deployment may not be ready for snapshots", 
+                    f"Status: {status_code}, Message: {error_message}. The deployment may need to be in a different status or the database may not be fully initialized."
+                )
+            else:
+                return format_error_response(
+                    "Failed to create snapshot", 
+                    f"Status: {status_code}, Message: {error_message}"
+                )
         
         return format_success_response(
             f"Snapshot created successfully",
