@@ -32,6 +32,7 @@ from .logs.tools import LogsModule
 from .checkouts.tools import CheckoutsModule
 from .shadows.tools import ShadowsModule
 from .schema.tools import SchemaModule
+from .subscriptions.tools import SubscriptionsModule
 
 # Load environment variables from project root
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -90,12 +91,17 @@ class GuepardMCPServer:
             "logs": LogsModule,
             "checkouts": CheckoutsModule,
             "shadows": ShadowsModule,
-            "schema": SchemaModule
+            "schema": SchemaModule,
+            "subscriptions": SubscriptionsModule
         }
         
         for module_name, module_class in module_classes.items():
             if self.config.is_module_enabled(module_name):
-                self.modules[module_name] = module_class(self.client, self.config)
+                # Special handling for modules that need server reference
+                if module_name in ["subscriptions", "compute"]:
+                    self.modules[module_name] = module_class(self.client, self.config, self)
+                else:
+                    self.modules[module_name] = module_class(self.client, self.config)
                 logger.info(f"Module '{module_name}' loaded with {len(self.modules[module_name].tools)} tools")
             else:
                 logger.info(f"Module '{module_name}' disabled by configuration")
@@ -107,8 +113,8 @@ class GuepardMCPServer:
                 if self.config.is_tool_enabled(tool_name):
                     self.tools[tool_name] = tool
         
-        # Add subscription management tools
-        self._add_subscription_tools()
+        # Add configuration management tools
+        self._add_configuration_tools()
         
         # Log configuration summary
         config_summary = self.config.get_configuration_summary()
@@ -123,106 +129,9 @@ class GuepardMCPServer:
             logger.error("ACCESS_TOKEN environment variable is required")
             sys.exit(1)
     
-    def _add_subscription_tools(self):
-        """Add subscription management tools"""
+    def _add_configuration_tools(self):
+        """Add configuration management tools"""
         from .utils.base import MCPTool
-        
-        class SubscribeDeploymentTool(MCPTool):
-            def __init__(self, server):
-                self.server = server
-            
-            def get_tool_definition(self) -> Dict:
-                return {
-                    "name": "subscribe_deployment",
-                    "description": "Subscribe to deployment notifications",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "deployment_id": {
-                                "type": "string",
-                                "description": "Deployment ID"
-                            }
-                        },
-                        "required": ["deployment_id"]
-                    }
-                }
-            
-            async def execute(self, arguments: Dict) -> str:
-                deployment_id = arguments.get("deployment_id")
-                self.server.subscribed_deployments.add(deployment_id)
-                return f"✅ Subscribed to notifications for deployment: {deployment_id}\nTotal subscriptions: {len(self.server.subscribed_deployments)}"
-        
-        class UnsubscribeDeploymentTool(MCPTool):
-            def __init__(self, server):
-                self.server = server
-            
-            def get_tool_definition(self) -> Dict:
-                return {
-                    "name": "unsubscribe_deployment",
-                    "description": "Unsubscribe from deployment notifications",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "deployment_id": {
-                                "type": "string",
-                                "description": "Deployment ID"
-                            }
-                        },
-                        "required": ["deployment_id"]
-                    }
-                }
-            
-            async def execute(self, arguments: Dict) -> str:
-                deployment_id = arguments.get("deployment_id")
-                self.server.subscribed_deployments.discard(deployment_id)
-                return f"✅ Unsubscribed from notifications for deployment: {deployment_id}\nTotal subscriptions: {len(self.server.subscribed_deployments)}"
-        
-        class ListSubscriptionsTool(MCPTool):
-            def __init__(self, server):
-                self.server = server
-            
-            def get_tool_definition(self) -> Dict:
-                return {
-                    "name": "list_subscriptions",
-                    "description": "List all deployment subscriptions",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {}
-                    }
-                }
-            
-            async def execute(self, arguments: Dict) -> str:
-                if not self.server.subscribed_deployments:
-                    return "📋 No active subscriptions"
-                else:
-                    subscriptions = list(self.server.subscribed_deployments)
-                    return f"📋 Active subscriptions ({len(subscriptions)}):\n" + "\n".join(f"• {deployment_id}" for deployment_id in subscriptions)
-        
-        class TestConnectionTool(MCPTool):
-            def __init__(self, server):
-                self.server = server
-            
-            def get_tool_definition(self) -> Dict:
-                return {
-                    "name": "test_connection",
-                    "description": "Test connection to Guepard API",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {}
-                    }
-                }
-            
-            async def execute(self, arguments: Dict) -> str:
-                try:
-                    # Test with a simple API call
-                    result = await self.server.client._make_api_call("GET", "/deploy", params={"limit": 1})
-                    if isinstance(result, dict) and result.get("error"):
-                        return f"❌ Connection failed: {result.get('message', 'Unknown error')}"
-                    else:
-                        config_summary = self.server.config.get_configuration_summary()
-                        return f"✅ Guepard MCP Server connected successfully!\nAPI URL: {self.server.client.api_base_url}\nToken: {self.server.client.access_token[:20]}...\n\n📊 Available Tools: {len(self.server.tools)}\n📋 Modules: {', '.join(self.server.modules.keys())}\n⚙️ Configuration: {config_summary['configuration_mode']}"
-                except Exception as e:
-                    return f"❌ Connection test failed: {str(e)}"
         
         class ListConfigurationsTool(MCPTool):
             def __init__(self, server):
@@ -303,11 +212,7 @@ class GuepardMCPServer:
                 except Exception as e:
                     return f"❌ Failed to get configuration: {str(e)}"
         
-        # Add subscription tools
-        self.tools["subscribe_deployment"] = SubscribeDeploymentTool(self)
-        self.tools["unsubscribe_deployment"] = UnsubscribeDeploymentTool(self)
-        self.tools["list_subscriptions"] = ListSubscriptionsTool(self)
-        self.tools["test_connection"] = TestConnectionTool(self)
+        # Add configuration tools
         self.tools["list_configurations"] = ListConfigurationsTool(self)
         self.tools["get_configuration"] = GetConfigurationTool(self)
     

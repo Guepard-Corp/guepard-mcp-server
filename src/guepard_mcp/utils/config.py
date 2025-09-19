@@ -93,38 +93,38 @@ class ToolConfig:
 PREDEFINED_CONFIGS = {
     "v1": {
         "description": "Basic v1 - Essential deployment management tools only",
-        "enabled_modules": ["deployments", "compute", "performance", "image_providers, checkouts, snapshots, branches"],
+        "enabled_modules": ["deployments", "compute", "performance", "image_providers", "checkouts", "snapshots", "branches", "logs", "subscriptions"],
         "enabled_tools": [
             "test_connection",
+            
+            "subscribe_deployment",
+            "unsubscribe_deployment",
+            "list_subscriptions",
 
             "list_deployments", 
             "get_deployment", 
             "create_deployment",
 
-            "start_compute", 
-            "stop_compute",
-
-            "checkout_branch",
-            "create_branch_from_snapshot",
-            
-            "list_branches",
-            "update_branch",
-            "create_branch_from_snapshot",
-
+            "get_compute_status",
             "start_compute",
             "stop_compute",
-            "get_compute_status",
-
+            
             "list_snapshots_deployment",
             "list_snapshots_branch",
             "create_snapshot",
             
-            "get_deployment_logs",
+            "list_branches",
+            "create_branch_from_snapshot",
+
+            "checkout_branch",
+            "create_branch_from_snapshot",
 
             "list_performance_profiles",
             "get_performance_profiles",
 
             "list_image_providers"
+
+            "get_deployment_logs",
         ]
     },
     "minimal": {
