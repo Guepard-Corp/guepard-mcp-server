@@ -605,42 +605,6 @@ class UpdateDeploymentEventsTool(MCPTool):
         )
 
 
-class GetDeploymentStatusTool(MCPTool):
-    """Tool for getting current status of a deployment"""
-    
-    def get_tool_definition(self) -> Dict[str, Any]:
-        return {
-            "name": "get_deployment_status",
-            "description": "Get current status of a deployment",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "deployment_id": {
-                        "type": "string",
-                        "description": "Deployment ID"
-                    }
-                },
-                "required": ["deployment_id"]
-            }
-        }
-    
-    async def execute(self, arguments: Dict[str, Any]) -> str:
-        deployment_id = arguments.get("deployment_id")
-        
-        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}/status")
-        
-        if result.get("error"):
-            return format_error_response(
-                "Failed to get deployment status", 
-                result.get("message", "Unknown error")
-            )
-        
-        return format_success_response(
-            f"Deployment status retrieved for {deployment_id}",
-            result
-        )
-
-
 class DeploymentsModule(MCPModule):
     """Deployments module containing all deployment-related tools"""
     
@@ -655,6 +619,5 @@ class DeploymentsModule(MCPModule):
             "get_deployment": GetDeploymentTool(self.client, self.config, self.server),
             "update_deployment": UpdateDeploymentTool(self.client),
             "delete_deployment": DeleteDeploymentTool(self.client),
-            "update_deployment_events": UpdateDeploymentEventsTool(self.client),
-            "get_deployment_status": GetDeploymentStatusTool(self.client)
+            "update_deployment_events": UpdateDeploymentEventsTool(self.client)
         }

@@ -105,7 +105,7 @@ PREDEFINED_CONFIGS = {
             "get_deployment", 
             "create_deployment",
 
-            "get_compute_status",
+            "get_compute",
             "start_compute",
             "stop_compute",
             
@@ -140,8 +140,8 @@ PREDEFINED_CONFIGS = {
     "read_only": {
         "description": "Read-only access to deployments and monitoring",
         "enabled_tools": [
-            "test_connection", "list_deployments", "get_deployment", "get_deployment_status",
-            "get_deployment_logs", "get_deployment_metrics", "get_compute_status",
+            "test_connection", "list_deployments", "get_deployment", "get_compute_status",
+            "get_deployment_logs", "get_deployment_metrics", "get_compute",
             "list_performance_profiles", "get_performance_profiles"
         ]
     },
@@ -156,8 +156,8 @@ PREDEFINED_CONFIGS = {
     "monitoring": {
         "description": "Monitoring and observability only",
         "enabled_tools": [
-            "test_connection", "get_deployment_status", "get_deployment_logs",
-            "get_deployment_metrics", "get_compute_status", "list_subscriptions"
+            "test_connection", "get_compute_status", "get_deployment_logs",
+            "get_deployment_metrics", "get_compute", "list_subscriptions"
         ]
     },
     "ci_cd": {
@@ -165,7 +165,7 @@ PREDEFINED_CONFIGS = {
         "enabled_tools": [
             "test_connection", "list_deployments", "get_deployment", 
             "create_deployment", "start_compute", "stop_compute",
-            "get_deployment_status", "get_deployment_logs"
+            "get_compute_status", "get_deployment_logs"
         ]
     },
     "admin": {

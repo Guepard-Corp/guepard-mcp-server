@@ -104,12 +104,12 @@ class StopComputeTool(MCPTool):
         return format_success_response(response, result)
 
 
-class GetComputeStatusTool(MCPTool):
+class GetComputeTool(MCPTool):
     """Tool for getting compute status for a deployment"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
-            "name": "get_compute_status",
+            "name": "get_compute",
             "description": "Get compute status for a deployment",
             "inputSchema": {
                 "type": "object",
@@ -140,6 +140,51 @@ class GetComputeStatusTool(MCPTool):
         )
 
 
+class GetComputeStatusTool(MCPTool):
+    """Tool for getting current status of a deployment"""
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "get_compute_status",
+            "description": "Get current status of a deployment",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID"
+                    }
+                },
+                "required": ["deployment_id"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        deployment_id = arguments.get("deployment_id")
+        
+        result = await self.client._make_api_call("GET", f"/deploy/{deployment_id}")
+        
+        if result.get("error"):
+            return format_error_response(
+                "Failed to get deployment status", 
+                result.get("message", "Unknown error")
+            )
+        
+        # Extract status information from the deployment data
+        status = result.get("status", "Unknown")
+        deployment_name = result.get("name", "Unknown")
+        
+        return format_success_response(
+            f"Deployment status for {deployment_name} ({deployment_id}): {status}",
+            {
+                "deployment_id": deployment_id,
+                "deployment_name": deployment_name,
+                "status": status,
+                "full_deployment_data": result
+            }
+        )
+
+
 class ComputeModule(MCPModule):
     """Compute module containing all compute-related tools"""
     
@@ -151,5 +196,6 @@ class ComputeModule(MCPModule):
         self.tools = {
             "start_compute": StartComputeTool(self.client, self.config, self.server),
             "stop_compute": StopComputeTool(self.client, self.config, self.server),
+            "get_compute": GetComputeTool(self.client),
             "get_compute_status": GetComputeStatusTool(self.client)
         }

@@ -16,17 +16,19 @@ load_dotenv()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from guepard_mcp.compute.tools import GetComputeStatusTool
-from guepard_mcp.deployments.tools import ListDeploymentsTool
 from guepard_mcp.utils.base import GuepardAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from test_utils import get_real_deployment_id, get_fake_deployment_id
 
 async def test_get_compute_status():
     """Test get_compute_status tool with real API calls"""
     print("🧪 Testing get_compute_status tool with real API calls...")
     
-    # Create tool instances
+    # Create tool instance
     client = GuepardAPIClient()
     tool = GetComputeStatusTool(client)
-    list_tool = ListDeploymentsTool(client)
     
     # Check if we have credentials
     if not client.access_token:
@@ -40,59 +42,35 @@ async def test_get_compute_status():
     # Initialize HTTP session
     await client.connect()
     
-    # Get real deployment IDs from API
-    print("\n  📋 Fetching real deployment IDs from API...")
+    # Get real deployment ID from API
     try:
-        deployments_result = await list_tool.execute({"limit": 5})
-        print(f"    Deployments result: {deployments_result}")
-        
-        # Extract deployment IDs from the result
-        import json
-        if "✅" in deployments_result and "[" in deployments_result:
-            # Extract JSON part from the response
-            json_start = deployments_result.find("[")
-            json_end = deployments_result.rfind("]") + 1
-            if json_start != -1 and json_end != -1:
-                json_str = deployments_result[json_start:json_end]
-                deployments = json.loads(json_str)
-                if deployments and len(deployments) > 0:
-                    real_deployment_id = deployments[0]["id"]
-                    print(f"    Using real deployment ID: {real_deployment_id}")
-                else:
-                    print("    ❌ No deployments found")
-                    return False
-            else:
-                print("    ❌ Could not parse deployments JSON")
-                return False
-        else:
-            print("    ❌ Could not fetch deployments")
-            return False
+        real_deployment_id = await get_real_deployment_id(client)
     except Exception as e:
-        print(f"    ❌ Failed to fetch deployments: {e}")
+        print(f"    ❌ Failed to get real deployment ID: {e}")
         return False
     
-    # Test 1: Get compute status for existing deployment
-    print("\n  Testing get compute status for existing deployment...")
+    # Test 1: Get status of existing deployment
+    print("\n  Testing get status of existing deployment...")
     try:
         result = await tool.execute({
             "deployment_id": real_deployment_id
         })
         print(f"    Response: {result}")
-        print("  ✅ Get compute status test completed")
+        print("  ✅ Get existing deployment status test completed")
     except Exception as e:
-        print(f"    ❌ Get compute status test failed: {e}")
+        print(f"    ❌ Get existing deployment status test failed: {e}")
         return False
     
-    # Test 2: Get compute status for non-existent deployment
-    print("\n  Testing get compute status for non-existent deployment...")
+    # Test 2: Get status of non-existent deployment
+    print("\n  Testing get status of non-existent deployment...")
     try:
         result = await tool.execute({
-            "deployment_id": "99999999-9999-9999-9999-999999999999"
+            "deployment_id": get_fake_deployment_id()
         })
         print(f"    Response: {result}")
-        print("  ✅ Non-existent deployment test completed")
+        print("  ✅ Get non-existent deployment status test completed")
     except Exception as e:
-        print(f"    ❌ Non-existent deployment test failed: {e}")
+        print(f"    ❌ Get non-existent deployment status test failed: {e}")
         return False
     
     # Test 3: Missing deployment_id parameter
@@ -109,13 +87,13 @@ async def test_get_compute_status():
     await client.disconnect()
     
     print("\n" + "="*60)
-    print("📊 SYNTHESIS - Get Compute Status Test Results")
+    print("📊 SYNTHESIS - Compute Status Test Results")
     print("="*60)
     print("✅ Tested scenarios:")
-    print("   • Get compute status for existing deployment")
-    print("   • Get compute status for non-existent deployment")
+    print("   • Get status of existing deployment")
+    print("   • Get status of non-existent deployment")
     print("   • Handle missing deployment_id parameter")
-    print(f"\n🔗 API Endpoint: {client.api_base_url}/compute/status")
+    print(f"\n🔗 API Endpoint: {client.api_base_url}/deploy/{{deployment_id}}/status")
     print(f"🔑 Authentication: {'✅ Token present' if client.access_token else '❌ No token'}")
     print("\n📝 Notes:")
     print("   • All tests completed successfully")
