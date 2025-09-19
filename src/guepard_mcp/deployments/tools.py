@@ -63,6 +63,11 @@ class ListDeploymentsTool(MCPTool):
 class CreateDeploymentTool(MCPTool):
     """Tool for creating a new deployment"""
     
+    def __init__(self, client: GuepardAPIClient, config=None, server=None):
+        super().__init__(client)
+        self.config = config
+        self.server = server
+    
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
             "name": "create_deployment",
@@ -269,14 +274,24 @@ class CreateDeploymentTool(MCPTool):
         deployment_id = result.get("id", "Unknown")
         deployment_name = result.get("name", "Unknown")
         
+        # Automatically subscribe to the deployment if server is available
+        if self.server and deployment_id != "Unknown":
+            self.server.subscribed_deployments.add(deployment_id)
+        
+        response_message = f"Deployment '{deployment_name}' created successfully"
+        if self.server and deployment_id != "Unknown":
+            response_message += f"\n📌 Automatically subscribed to deployment {deployment_id}"
+            response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
+        
         return format_success_response(
-            f"Deployment '{deployment_name}' created successfully",
+            response_message,
             {
                 "deployment_id": deployment_id,
                 "deployment_name": deployment_name,
                 "repository_name": arguments.get("repository_name"),
                 "database_provider": arguments.get("database_provider", "PostgreSQL"),
                 "database_version": arguments.get("database_version", "17"),
+                "subscribed": self.server is not None and deployment_id != "Unknown",
                 "full_response": result
             }
         )
@@ -284,6 +299,11 @@ class CreateDeploymentTool(MCPTool):
 
 class GetDeploymentTool(MCPTool):
     """Tool for getting deployment details"""
+    
+    def __init__(self, client: GuepardAPIClient, config=None, server=None):
+        super().__init__(client)
+        self.config = config
+        self.server = server
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
@@ -331,11 +351,16 @@ class GetDeploymentTool(MCPTool):
                     result.get("message", "Unknown error")
                 )
             
-            # Handle successful response
-            return format_success_response(
-                f"Deployment {deployment_id} retrieved successfully",
-                result
-            )
+            # Auto-subscribe when getting deployment details
+            if self.server and deployment_id:
+                self.server.subscribed_deployments.add(deployment_id)
+            
+            response_message = f"Deployment {deployment_id} retrieved successfully"
+            if self.server and deployment_id:
+                response_message += f"\n📌 Automatically subscribed to deployment {deployment_id}"
+                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
+            
+            return format_success_response(response_message, result)
         
         # If repository_name or latest is provided, get all deployments and filter
         result = await self.client._make_api_call("GET", "/deploy", params={"limit": 100})
@@ -377,20 +402,34 @@ class GetDeploymentTool(MCPTool):
             # Sort by created_date (most recent first)
             filtered_deployments.sort(key=lambda x: x.get("created_date", ""), reverse=True)
             selected_deployment = filtered_deployments[0]
+            selected_deployment_id = selected_deployment.get("id")
             
-            return format_success_response(
-                f"Latest deployment retrieved successfully",
-                selected_deployment
-            )
+            # Auto-subscribe to the latest deployment
+            if self.server and selected_deployment_id:
+                self.server.subscribed_deployments.add(selected_deployment_id)
+            
+            response_message = f"Latest deployment retrieved successfully"
+            if self.server and selected_deployment_id:
+                response_message += f"\n📌 Automatically subscribed to deployment {selected_deployment_id}"
+                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
+            
+            return format_success_response(response_message, selected_deployment)
         
         # If repository_name only, return the first match
         if repository_name:
             selected_deployment = filtered_deployments[0]
+            selected_deployment_id = selected_deployment.get("id")
             
-            return format_success_response(
-                f"Deployment for repository '{repository_name}' retrieved successfully",
-                selected_deployment
-            )
+            # Auto-subscribe to the repository deployment
+            if self.server and selected_deployment_id:
+                self.server.subscribed_deployments.add(selected_deployment_id)
+            
+            response_message = f"Deployment for repository '{repository_name}' retrieved successfully"
+            if self.server and selected_deployment_id:
+                response_message += f"\n📌 Automatically subscribed to deployment {selected_deployment_id}"
+                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
+            
+            return format_success_response(response_message, selected_deployment)
         
         # Fallback: return all filtered deployments
         return format_success_response(
@@ -605,11 +644,15 @@ class GetDeploymentStatusTool(MCPTool):
 class DeploymentsModule(MCPModule):
     """Deployments module containing all deployment-related tools"""
     
+    def __init__(self, client: GuepardAPIClient, config=None, server=None):
+        self.server = server
+        super().__init__(client, config)
+    
     def _initialize_tools(self):
         self.tools = {
             "list_deployments": ListDeploymentsTool(self.client),
-            "create_deployment": CreateDeploymentTool(self.client),
-            "get_deployment": GetDeploymentTool(self.client),
+            "create_deployment": CreateDeploymentTool(self.client, self.config, self.server),
+            "get_deployment": GetDeploymentTool(self.client, self.config, self.server),
             "update_deployment": UpdateDeploymentTool(self.client),
             "delete_deployment": DeleteDeploymentTool(self.client),
             "update_deployment_events": UpdateDeploymentEventsTool(self.client),

@@ -98,7 +98,7 @@ class GuepardMCPServer:
         for module_name, module_class in module_classes.items():
             if self.config.is_module_enabled(module_name):
                 # Special handling for modules that need server reference
-                if module_name in ["subscriptions", "compute"]:
+                if module_name in ["subscriptions", "compute", "deployments"]:
                     self.modules[module_name] = module_class(self.client, self.config, self)
                 else:
                     self.modules[module_name] = module_class(self.client, self.config)
