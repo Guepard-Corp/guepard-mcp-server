@@ -58,13 +58,13 @@ class CheckoutBranchTool(MCPTool):
         )
 
 
-class CreateBranchFromSnapshotTool(MCPTool):
-    """Tool for creating a new branch from a specific snapshot"""
+class CheckoutSnapshotTool(MCPTool):
+    """Tool for checking out to a specific snapshot"""
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
-            "name": "create_branch_from_snapshot",
-            "description": "Create a new branch from a specific snapshot",
+            "name": "checkout_snapshot",
+            "description": "Checkout to a specific snapshot",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -90,7 +90,7 @@ class CreateBranchFromSnapshotTool(MCPTool):
                         "default": True
                     }
                 },
-                "required": ["deployment_id", "branch_id", "snapshot_id", "branch_name"]
+                "required": ["deployment_id", "branch_id", "snapshot_id"]
             }
         }
     
@@ -98,29 +98,33 @@ class CreateBranchFromSnapshotTool(MCPTool):
         deployment_id = arguments.get("deployment_id")
         branch_id = arguments.get("branch_id")
         snapshot_id = arguments.get("snapshot_id")
-        branch_name = arguments.get("branch_name")
-        is_ephemeral = arguments.get("is_ephemeral", False)
+        discard_changes = arguments.get("discard_changes", "true")
+        checkout = arguments.get("checkout", True)
+        ephemeral = arguments.get("ephemeral", True)
+        performance_profile_name = arguments.get("performance_profile_name", "querying")
         
         data = {
-            "branch_name": branch_name,
-            "snapshot_id": snapshot_id,
-            "is_ephemeral": is_ephemeral
+            "discard_changes": discard_changes,
+            "checkout": checkout,
+            "ephemeral": ephemeral,
+            "performance_profile_name": performance_profile_name,
+            "snapshot_id": snapshot_id
         }
         
         result = await self.client._make_api_call(
             "POST", 
-            f"/deploy/{deployment_id}/{branch_id}/{snapshot_id}/branch", 
+            f"/deploy/{deployment_id}/{branch_id}/checkout", 
             data=data
         )
         
         if result.get("error"):
             return format_error_response(
-                "Failed to create branch from snapshot", 
+                "Failed to checkout snapshot", 
                 result.get("message", "Unknown error")
             )
         
         return format_success_response(
-            f"Branch '{branch_name}' created successfully from snapshot {snapshot_id}",
+            f"Successfully checked out to snapshot {snapshot_id}",
             result
         )
 
