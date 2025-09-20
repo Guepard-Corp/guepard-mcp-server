@@ -109,12 +109,9 @@ async def test_checkout_snapshot():
         real_branch_id = "fake-branch-123"
         real_snapshot_id = "fake-snapshot-123"
     
-    # Test: Checkout to snapshot
-    print("\n  🧪 Testing checkout to snapshot...")
+    # Test: Checkout to snapshot (fully automated workflow - no deployment_id)
+    print("\n  🧪 Testing fully automated checkout to snapshot...")
     input_data = {
-        "deployment_id": real_deployment_id,
-        "branch_id": real_branch_id,
-        "snapshot_id": real_snapshot_id,
         "discard_changes": "true",
         "checkout": True,
         "ephemeral": True,
