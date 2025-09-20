@@ -100,6 +100,7 @@ PREDEFINED_CONFIGS = {
             "subscribe_deployment",
             "unsubscribe_deployment",
             "list_subscriptions",
+            "manage_subscriptions",
 
             "list_deployments", 
             "get_deployment", 
@@ -117,7 +118,7 @@ PREDEFINED_CONFIGS = {
             "create_branch_from_snapshot",
 
             "checkout_branch",
-            "create_branch_from_snapshot",
+            "checkout_snapshot",
 
             "list_performance_profiles",
             "get_performance_profiles",
