@@ -4,6 +4,7 @@ Deployments MCP Tools for Guepard Platform
 
 from typing import Dict, Any, Optional, List
 from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_response, format_error_response
+from ..utils.auto_subscribe_tool import AutoSubscribeMCPTool
 
 
 class ListDeploymentsTool(MCPTool):
@@ -60,13 +61,13 @@ class ListDeploymentsTool(MCPTool):
             return format_success_response("Deployments retrieved successfully", result)
 
 
-class CreateDeploymentTool(MCPTool):
-    """Tool for creating a new deployment"""
+class CreateDeploymentTool(AutoSubscribeMCPTool):
+    """Tool for creating a new deployment with automatic subscription"""
     
     def __init__(self, client: GuepardAPIClient, config=None, server=None):
-        super().__init__(client)
-        self.config = config
-        self.server = server
+        super().__init__(client, config, server)
+        # Configure auto-subscription for this tool
+        self.configure_auto_subscription(actions={'create_deployment': True})
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
@@ -109,6 +110,11 @@ class CreateDeploymentTool(MCPTool):
                     "performance_profile_id": {
                         "type": "string",
                         "description": "Performance profile ID. Use 'list_performance_profiles' tool to get available profile IDs, or leave empty to auto-select a default profile."
+                    },
+                    "auto_subscribe": {
+                        "type": "boolean",
+                        "description": "Automatically subscribe to this deployment (default: true)",
+                        "default": True
                     }
                 },
                 "required": ["repository_name"]
@@ -274,17 +280,24 @@ class CreateDeploymentTool(MCPTool):
         deployment_id = result.get("id", "Unknown")
         deployment_name = result.get("name", "Unknown")
         
-        # Automatically subscribe to the deployment if server is available
-        if self.server and deployment_id != "Unknown":
-            self.server.subscribed_deployments.add(deployment_id)
+        # Check if auto-subscription is explicitly disabled
+        auto_subscribe = arguments.get("auto_subscribe", True)
+        if not auto_subscribe:
+            self.configure_auto_subscription(actions={'create_deployment': False})
         
+        # Create base response
         response_message = f"Deployment '{deployment_name}' created successfully"
-        if self.server and deployment_id != "Unknown":
-            response_message += f"\n📌 Automatically subscribed to deployment {deployment_id}"
-            response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
+        
+        # Enhance with auto-subscription
+        enhanced_response = self.enhance_response_with_subscription(
+            response_message,
+            deployment_id,
+            "create_deployment",
+            {"repository_name": arguments.get("repository_name")}
+        )
         
         return format_success_response(
-            response_message,
+            enhanced_response,
             {
                 "deployment_id": deployment_id,
                 "deployment_name": deployment_name,
@@ -292,18 +305,18 @@ class CreateDeploymentTool(MCPTool):
                 "database_provider": arguments.get("database_provider", "PostgreSQL"),
                 "database_version": arguments.get("database_version", "17"),
                 "subscribed": self.server is not None and deployment_id != "Unknown",
+                "auto_subscription_enabled": auto_subscribe,
                 "full_response": result
             }
         )
 
 
-class GetDeploymentTool(MCPTool):
-    """Tool for getting deployment details"""
+class GetDeploymentTool(AutoSubscribeMCPTool):
+    """Tool for getting deployment details with automatic subscription"""
     
     def __init__(self, client: GuepardAPIClient, config=None, server=None):
-        super().__init__(client)
-        self.config = config
-        self.server = server
+        super().__init__(client, config, server)
+        self.configure_auto_subscription(actions={'get_deployment': True})
     
     def get_tool_definition(self) -> Dict[str, Any]:
         return {
@@ -323,6 +336,11 @@ class GetDeploymentTool(MCPTool):
                     "latest": {
                         "type": "boolean",
                         "description": "Get the latest deployment (optional)"
+                    },
+                    "auto_subscribe": {
+                        "type": "boolean",
+                        "description": "Automatically subscribe to this deployment (default: true)",
+                        "default": True
                     }
                 }
             }
@@ -332,6 +350,11 @@ class GetDeploymentTool(MCPTool):
         deployment_id = arguments.get("deployment_id")
         repository_name = arguments.get("repository_name")
         latest = arguments.get("latest", False)
+        
+        # Check if auto-subscription is explicitly disabled
+        auto_subscribe = arguments.get("auto_subscribe", True)
+        if not auto_subscribe:
+            self.configure_auto_subscription(actions={'get_deployment': False})
         
         # Validate that at least one parameter is provided
         if not deployment_id and not repository_name and not latest:
@@ -351,16 +374,18 @@ class GetDeploymentTool(MCPTool):
                     result.get("message", "Unknown error")
                 )
             
-            # Auto-subscribe when getting deployment details
-            if self.server and deployment_id:
-                self.server.subscribed_deployments.add(deployment_id)
-            
+            # Create base response
             response_message = f"Deployment {deployment_id} retrieved successfully"
-            if self.server and deployment_id:
-                response_message += f"\n📌 Automatically subscribed to deployment {deployment_id}"
-                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
             
-            return format_success_response(response_message, result)
+            # Enhance with auto-subscription
+            enhanced_response = self.enhance_response_with_subscription(
+                response_message,
+                deployment_id,
+                "get_deployment",
+                {"repository_name": repository_name, "latest": latest}
+            )
+            
+            return format_success_response(enhanced_response, result)
         
         # If repository_name or latest is provided, get all deployments and filter
         result = await self.client._make_api_call("GET", "/deploy", params={"limit": 100})
@@ -404,32 +429,36 @@ class GetDeploymentTool(MCPTool):
             selected_deployment = filtered_deployments[0]
             selected_deployment_id = selected_deployment.get("id")
             
-            # Auto-subscribe to the latest deployment
-            if self.server and selected_deployment_id:
-                self.server.subscribed_deployments.add(selected_deployment_id)
-            
+            # Create base response
             response_message = f"Latest deployment retrieved successfully"
-            if self.server and selected_deployment_id:
-                response_message += f"\n📌 Automatically subscribed to deployment {selected_deployment_id}"
-                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
             
-            return format_success_response(response_message, selected_deployment)
+            # Enhance with auto-subscription
+            enhanced_response = self.enhance_response_with_subscription(
+                response_message,
+                selected_deployment_id,
+                "get_deployment",
+                {"repository_name": repository_name, "latest": latest}
+            )
+            
+            return format_success_response(enhanced_response, selected_deployment)
         
         # If repository_name only, return the first match
         if repository_name:
             selected_deployment = filtered_deployments[0]
             selected_deployment_id = selected_deployment.get("id")
             
-            # Auto-subscribe to the repository deployment
-            if self.server and selected_deployment_id:
-                self.server.subscribed_deployments.add(selected_deployment_id)
-            
+            # Create base response
             response_message = f"Deployment for repository '{repository_name}' retrieved successfully"
-            if self.server and selected_deployment_id:
-                response_message += f"\n📌 Automatically subscribed to deployment {selected_deployment_id}"
-                response_message += f"\n📋 Total subscriptions: {len(self.server.subscribed_deployments)}"
             
-            return format_success_response(response_message, selected_deployment)
+            # Enhance with auto-subscription
+            enhanced_response = self.enhance_response_with_subscription(
+                response_message,
+                selected_deployment_id,
+                "get_deployment",
+                {"repository_name": repository_name, "latest": latest}
+            )
+            
+            return format_success_response(enhanced_response, selected_deployment)
         
         # Fallback: return all filtered deployments
         return format_success_response(

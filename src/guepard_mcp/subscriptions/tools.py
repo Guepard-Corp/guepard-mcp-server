@@ -4,6 +4,7 @@ Subscription Management MCP Tools for Guepard Platform
 
 from typing import Dict, Any, Set
 from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_response, format_error_response
+from ..utils.auto_subscribe_tool import AutoSubscribeMCPTool
 
 
 class SubscribeDeploymentTool(MCPTool):
@@ -165,6 +166,117 @@ class ListSubscriptionsTool(MCPTool):
             return format_error_response("List subscriptions failed", str(e))
 
 
+class ManageSubscriptionsTool(AutoSubscribeMCPTool):
+    """Tool for managing subscription settings"""
+    
+    def __init__(self, client: GuepardAPIClient, config=None, server=None):
+        super().__init__(client, config, server)
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        return {
+            "name": "manage_subscriptions",
+            "description": "Manage automatic subscription settings and view current subscriptions",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "Action to perform",
+                        "enum": ["status", "enable", "disable", "configure", "clear_all", "unsubscribe"]
+                    },
+                    "tool_name": {
+                        "type": "string",
+                        "description": "Tool name for configure/unsubscribe actions"
+                    },
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "Deployment ID for unsubscribe action"
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Enable/disable auto-subscription"
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    
+    async def execute(self, arguments: Dict[str, Any]) -> str:
+        action = arguments.get("action")
+        
+        if action == "status":
+            info = self.get_subscription_info()
+            return format_success_response(
+                "Subscription status retrieved",
+                info
+            )
+        
+        elif action == "enable":
+            enabled = arguments.get("enabled", True)
+            self.configure_auto_subscription(enabled=enabled)
+            return format_success_response(
+                f"Auto-subscription {'enabled' if enabled else 'disabled'}",
+                {"enabled": enabled}
+            )
+        
+        elif action == "disable":
+            self.configure_auto_subscription(enabled=False)
+            return format_success_response(
+                "Auto-subscription disabled",
+                {"enabled": False}
+            )
+        
+        elif action == "configure":
+            tool_name = arguments.get("tool_name")
+            enabled = arguments.get("enabled", True)
+            
+            if not tool_name:
+                return format_error_response(
+                    "Configuration failed",
+                    "tool_name is required for configure action"
+                )
+            
+            self.configure_auto_subscription(actions={tool_name: enabled})
+            return format_success_response(
+                f"Auto-subscription for {tool_name} {'enabled' if enabled else 'disabled'}",
+                {"tool_name": tool_name, "enabled": enabled}
+            )
+        
+        elif action == "clear_all":
+            count = self.subscription_manager.clear_all_subscriptions()
+            return format_success_response(
+                f"Cleared {count} subscriptions",
+                {"cleared_count": count}
+            )
+        
+        elif action == "unsubscribe":
+            deployment_id = arguments.get("deployment_id")
+            
+            if not deployment_id:
+                return format_error_response(
+                    "Unsubscribe failed",
+                    "deployment_id is required for unsubscribe action"
+                )
+            
+            success = self.subscription_manager.unsubscribe_from_deployment(deployment_id)
+            if success:
+                return format_success_response(
+                    f"Unsubscribed from deployment {deployment_id}",
+                    {"deployment_id": deployment_id, "success": True}
+                )
+            else:
+                return format_error_response(
+                    "Unsubscribe failed",
+                    f"Could not unsubscribe from deployment {deployment_id}"
+                )
+        
+        else:
+            return format_error_response(
+                "Invalid action",
+                f"Unknown action: {action}"
+            )
+
+
 class TestConnectionTool(MCPTool):
     """Tool for testing connection to Guepard API"""
     
@@ -223,5 +335,6 @@ class SubscriptionsModule(MCPModule):
             "subscribe_deployment": SubscribeDeploymentTool(self.client, self.config, self.server),
             "unsubscribe_deployment": UnsubscribeDeploymentTool(self.client, self.config, self.server),
             "list_subscriptions": ListSubscriptionsTool(self.client, self.config, self.server),
+            "manage_subscriptions": ManageSubscriptionsTool(self.client, self.config, self.server),
             "test_connection": TestConnectionTool(self.client, self.config, self.server)
         }
