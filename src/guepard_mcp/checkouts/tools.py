@@ -135,5 +135,5 @@ class CheckoutsModule(MCPModule):
     def _initialize_tools(self):
         self.tools = {
             "checkout_branch": CheckoutBranchTool(self.client),
-            "create_branch_from_snapshot": CreateBranchFromSnapshotTool(self.client)
+            "checkout_snapshot": CheckoutSnapshotTool(self.client)
         }
