@@ -93,7 +93,7 @@ class ToolConfig:
 PREDEFINED_CONFIGS = {
     "v1": {
         "description": "Basic v1 - Essential deployment management tools only",
-        "enabled_modules": ["deployments", "compute", "performance", "image_providers", "checkouts", "snapshots", "branches", "logs", "subscriptions"],
+        "enabled_modules": ["deployments", "compute", "performance", "image_providers", "checkouts", "snapshots", "branches", "subscriptions"],
         "enabled_tools": [
             "test_connection",
             
@@ -123,8 +123,6 @@ PREDEFINED_CONFIGS = {
             "get_performance_profiles",
 
             "list_image_providers"
-
-            "get_deployment_logs",
         ]
     },
     "minimal": {
