@@ -212,9 +212,11 @@ class GuepardMCPServer:
                 except Exception as e:
                     return f"❌ Failed to get configuration: {str(e)}"
         
-        # Add configuration tools
-        self.tools["list_configurations"] = ListConfigurationsTool(self)
-        self.tools["get_configuration"] = GetConfigurationTool(self)
+        # Add configuration tools only if they're enabled
+        if self.config.is_tool_enabled("list_configurations"):
+            self.tools["list_configurations"] = ListConfigurationsTool(self)
+        if self.config.is_tool_enabled("get_configuration"):
+            self.tools["get_configuration"] = GetConfigurationTool(self)
     
     async def connect(self):
         """Initialize HTTP session"""

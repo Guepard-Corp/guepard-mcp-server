@@ -1,10 +1,10 @@
-# Use Python slim image
+# Use Python slim image (multi-platform)
 FROM python:3.12-slim
 
 # Set metadata
 LABEL maintainer="Guepard Team"
 LABEL description="Guepard MCP Server - Real API implementation"
-LABEL version="2.0.0"
+LABEL version="1.4.0"
 
 # Set workdir
 WORKDIR /app
@@ -31,7 +31,7 @@ ENV GUEPARD_AUTH_API="https://auth.guepard.run"
 ENV SUPABASE_ANON_KEY=""
 
 # Tool activation configuration
-ARG GUEPARD_CONFIG=""
+ARG GUEPARD_CONFIG="v1"
 ENV GUEPARD_CONFIG=${GUEPARD_CONFIG}
 ENV GUEPARD_ENABLED_MODULES=""
 ENV GUEPARD_ENABLED_TOOLS=""

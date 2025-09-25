@@ -121,7 +121,6 @@ PREDEFINED_CONFIGS = {
             "checkout_snapshot",
 
             "list_performance_profiles",
-            "get_performance_profiles",
 
             "list_image_providers"
         ]
