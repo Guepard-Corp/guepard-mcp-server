@@ -98,6 +98,22 @@ async def test_create_deployment():
         print(f"    ❌ Missing parameters test failed: {e}")
         return False
     
+    # Test 5: Auto-generate repository name when not provided
+    print("\n  Testing auto-generation of repository name...")
+    try:
+        result = await tool.execute({
+            "name": "Auto Repo Test Deployment"
+        })
+        print(f"    Response: {result}")
+        # Check if repository name was generated
+        if "repo-" in result and "repository_name" in result:
+            print("  ✅ Repository name auto-generation test completed")
+        else:
+            print("  ⚠️  Repository name may not have been auto-generated")
+    except Exception as e:
+        print(f"    ❌ Auto-generation test failed: {e}")
+        return False
+    
     # Clean up
     await client.disconnect()
     
@@ -109,6 +125,7 @@ async def test_create_deployment():
     print("   • Create deployment with all parameters")
     print("   • Create F2 deployment type")
     print("   • Handle missing required parameters")
+    print("   • Auto-generate repository name when not provided")
     print(f"\n🔗 API Endpoint: {client.api_base_url}/deploy")
     print(f"🔑 Authentication: {'✅ Token present' if client.access_token else '❌ No token'}")
     print("\n📝 Notes:")

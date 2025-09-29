@@ -3,6 +3,8 @@ Deployments MCP Tools for Guepard Platform
 """
 
 from typing import Dict, Any, Optional, List
+import uuid
+from datetime import datetime
 from ..utils.base import MCPTool, MCPModule, GuepardAPIClient, format_success_response, format_error_response
 from ..utils.auto_subscribe_tool import AutoSubscribeMCPTool
 
@@ -82,7 +84,7 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
                     },
                     "repository_name": {
                         "type": "string",
-                        "description": "Repository name"
+                        "description": "Repository name (will be auto-generated if not provided)"
                     },
                     "database_provider": {
                         "type": "string",
@@ -232,11 +234,18 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
         elif not database_provider:
             database_provider = "PostgreSQL"  # Fallback default
         
+        # Generate repository name if not provided
+        repository_name = arguments.get("repository_name")
+        if not repository_name:
+            # Generate a unique repository name with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            repository_name = f"repo-{timestamp}"
+        
         # Auto-select deployment type if not provided
         deployment_type = arguments.get("deployment_type")
         if not deployment_type:
             # Smart deployment type selection based on context
-            repository_name = arguments.get("repository_name", "").lower()
+            repository_name_lower = repository_name.lower()
             deployment_parent = arguments.get("deployment_parent")
             snapshot_parent = arguments.get("snapshot_parent")
             
@@ -244,10 +253,10 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
             if deployment_parent or snapshot_parent:
                 # If there's a parent deployment or snapshot, likely a clone/replica
                 deployment_type = "F2"
-            elif any(keyword in repository_name for keyword in ["replica", "clone", "copy", "backup", "f2"]):
+            elif any(keyword in repository_name_lower for keyword in ["replica", "clone", "copy", "backup", "f2"]):
                 # If repository name suggests it's a replica or F2 type
                 deployment_type = "F2"
-            elif any(keyword in repository_name for keyword in ["main", "master", "primary", "prod", "production"]):
+            elif any(keyword in repository_name_lower for keyword in ["main", "master", "primary", "prod", "production"]):
                 # If repository name suggests it's a main/production repo
                 deployment_type = "REPOSITORY"
             else:
@@ -256,7 +265,7 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
         
         data = {
             "name": arguments.get("name"),
-            "repository_name": arguments.get("repository_name"),
+            "repository_name": repository_name,
             "database_provider": database_provider,
             "database_version": database_version,
             "deployment_type": deployment_type,
@@ -293,7 +302,7 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
             response_message,
             deployment_id,
             "create_deployment",
-            {"repository_name": arguments.get("repository_name")}
+            {"repository_name": repository_name}
         )
         
         return format_success_response(
@@ -301,7 +310,7 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
             {
                 "deployment_id": deployment_id,
                 "deployment_name": deployment_name,
-                "repository_name": arguments.get("repository_name"),
+                "repository_name": repository_name,
                 "database_provider": arguments.get("database_provider", "PostgreSQL"),
                 "database_version": arguments.get("database_version", "17"),
                 "subscribed": self.server is not None and deployment_id != "Unknown",
