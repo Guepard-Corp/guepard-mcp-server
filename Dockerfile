@@ -38,5 +38,8 @@ ENV GUEPARD_ENABLED_TOOLS=""
 ENV GUEPARD_DISABLED_TOOLS=""
 ENV GUEPARD_DISABLED_MODULES=""
 
-# Default command to run MCP server
-CMD ["python", "main.py"]
+# Copy HTTP wrapper
+COPY http_wrapper.py .
+
+# Default command to run HTTP wrapper
+CMD ["python", "http_wrapper.py"]
