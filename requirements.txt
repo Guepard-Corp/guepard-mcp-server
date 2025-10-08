@@ -24,7 +24,7 @@ h11==0.16.0
 hatch==1.14.1
 hatchling==1.27.0
 httpcore==1.0.9
-httpx==0.28.1
+httpx>=0.24,<0.28
 httpx-sse==0.4.0
 hyperlink==21.0.0
 idna==3.10
@@ -82,3 +82,4 @@ virtualenv==20.31.2
 yarl==1.20.1
 zstandard==0.23.0
 fastapi
+supabase==2.8.0
