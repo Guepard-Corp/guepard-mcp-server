@@ -26,7 +26,6 @@ class GuepardAPIClient:
         self.access_token = os.getenv("ACCESS_TOKEN", "")
         self.api_base_url = os.getenv("GUEPARD_API_URL", "https://api.guepard.run")
         self.auth_api_url = os.getenv("GUEPARD_AUTH_API", "https://auth.guepard.run")
-        self.supabase_anon_key = os.getenv("SUPABASE_ANON_KEY", "")
         self.session: Optional[aiohttp.ClientSession] = None
         
         if not self.access_token:

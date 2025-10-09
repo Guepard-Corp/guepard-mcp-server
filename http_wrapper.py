@@ -161,8 +161,6 @@ async def run_mcp_request(request: dict, access_token: str, auth_info: Dict[str,
                 env["GUEPARD_API_URL"] = str(params["GUEPARD_API_URL"]).strip()
             if params.get("GUEPARD_AUTH_API"):
                 env["GUEPARD_AUTH_API"] = str(params["GUEPARD_AUTH_API"]).strip()
-            if params.get("SUPABASE_ANON_KEY"):
-                env["SUPABASE_ANON_KEY"] = str(params["SUPABASE_ANON_KEY"]).strip()
 
         # Run the MCP server
         process = await asyncio.create_subprocess_exec(

@@ -28,7 +28,6 @@ USER guepard
 ENV ACCESS_TOKEN=""
 ENV GUEPARD_API_URL="https://api.guepard.run"
 ENV GUEPARD_AUTH_API="https://auth.guepard.run"
-ENV SUPABASE_ANON_KEY=""
 
 # Tool activation configuration
 ARG GUEPARD_CONFIG="v1"
