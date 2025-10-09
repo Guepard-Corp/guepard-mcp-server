@@ -149,8 +149,6 @@ async def run_mcp_request(request: dict, access_token: str, auth_info: Dict[str,
         # Add authentication context to environment
         if auth_info.get("auth_type") == "supabase":
             env["AUTH_TYPE"] = "supabase"
-            env["SUPABASE_USER_ID"] = auth_info.get("user_id", "")
-            env["SUPABASE_USER_EMAIL"] = auth_info.get("email", "")
         else:
             env["AUTH_TYPE"] = "guepard"
 
