@@ -12,18 +12,10 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import subprocess
 import tempfile
-from supabase import create_client, Client
 from typing import Optional, Dict, Any
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-# Supabase configuration
-SUPABASE_URL = "https://zvcpnahtojfbbetnlshj.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2Y3BuYWh0b2pmYmJldG5sc2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2Mjg5MjgsImV4cCI6MjA2MTIwNDkyOH0.d-yl_231WhtTsnfuxTDvEtW35wyXMtro5M7Xu3vuGQ4"
-
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 app = FastAPI(title="Guepard MCP HTTP Wrapper", version="1.0.0")
 
@@ -37,39 +29,6 @@ class MCPResponse(BaseModel):
     id: int
     result: Optional[Dict[str, Any]] = None
     error: Optional[Dict[str, Any]] = None
-
-async def validate_supabase_token(token: str) -> Optional[Dict[str, Any]]:
-    """Validate Supabase access token and return user info"""
-    try:
-        # Quick validation - check if token looks like a Supabase token
-        if not token or len(token) < 50:
-            return None
-            
-        # Set the auth token for this request with timeout
-        supabase.auth.set_session(token, "")
-        
-        # Get user info with timeout protection
-        import asyncio
-        try:
-            # Use asyncio.wait_for to add timeout
-            user = await asyncio.wait_for(
-                asyncio.to_thread(supabase.auth.get_user), 
-                timeout=5.0
-            )
-        except asyncio.TimeoutError:
-            print("Supabase token validation timeout")
-            return None
-        
-        if user and user.user:
-            return {
-                "user_id": user.user.id,
-                "email": user.user.email,
-                "auth_type": "supabase"
-            }
-        return None
-    except Exception as e:
-        print(f"Supabase token validation failed: {e}")
-        return None
 
 def is_guepard_token(token: str) -> bool:
     """Check if token looks like a Guepard JWT token"""
@@ -103,21 +62,21 @@ async def root():
 
 @app.post("/mcp")
 async def mcp_endpoint(mcp_req: MCPRequest, request: Request):
-    """Handle MCP requests via HTTP with dual authentication support"""
+    """Handle MCP requests via HTTP with simplified authentication"""
     try:
         # Extract access token priority: Authorization header > x-access-token header > body params.token
         auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
         x_access_token = request.headers.get("x-access-token") or request.headers.get("X-Access-Token")
-        body_token = None
+        
+        # Get request body to check for token and user context
+        body_json = {}
         try:
             body_json = await request.json()
-            body_token = (
-                body_json.get("params", {}).get("token")
-                if isinstance(body_json, dict)
-                else None
-            )
         except Exception:
-            body_token = None
+            pass
+
+        body_token = body_json.get("params", {}).get("token") if isinstance(body_json, dict) else None
+        user_context = body_json.get("params", {}).get("user_context") if isinstance(body_json, dict) else None
 
         token: str = ""
         if auth_header and auth_header.lower().startswith("bearer "):
@@ -127,41 +86,51 @@ async def mcp_endpoint(mcp_req: MCPRequest, request: Request):
         elif body_token:
             token = str(body_token).strip()
 
-        if not token:
+        # Determine authentication method
+        auth_info = {}
+        
+        if user_context and isinstance(user_context, dict):
+            # Agent provided user context (Supabase user)
+            auth_info = {
+                "auth_type": "supabase",
+                "user_id": user_context.get("user_id", ""),
+                "email": user_context.get("email", ""),
+                "token": token  # Use provided token as ACCESS_TOKEN for Guepard API
+            }
+            print(f"✅ Supabase user context: {user_context.get('email', 'unknown')}")
+        elif token and is_guepard_token(token):
+            # Direct Guepard token
+            auth_info = {
+                "auth_type": "guepard",
+                "token": token
+            }
+            print(f"✅ Guepard token authentication")
+        elif token:
+            # Unknown token type, treat as Guepard token (backward compatibility)
+            auth_info = {
+                "auth_type": "guepard",
+                "token": token
+            }
+            print(f"⚠️ Unknown token type, treating as Guepard token")
+        else:
             raise HTTPException(status_code=401, detail="ACCESS_TOKEN missing. Provide via Authorization: Bearer <token>, X-Access-Token header, or params.token in body.")
 
-        # Determine authentication type and validate
-        auth_info = None
-        final_token = token
-        
-        # Try Supabase authentication first
-        supabase_user = await validate_supabase_token(token)
-        if supabase_user:
-            auth_info = supabase_user
-            print(f"✅ Supabase authentication successful for user: {supabase_user['email']}")
-        else:
-            # Fallback to Guepard token (existing functionality)
-            if is_guepard_token(token):
-                auth_info = {"auth_type": "guepard", "token": token}
-                print(f"✅ Guepard token authentication")
-            else:
-                # Try as Guepard token anyway (for backward compatibility)
-                auth_info = {"auth_type": "guepard", "token": token}
-                print(f"⚠️ Unknown token type, treating as Guepard token")
+        # Create MCP request (remove user_context from params to avoid passing to MCP server)
+        mcp_params = mcp_req.params.copy() if mcp_req.params else {}
+        if "user_context" in mcp_params:
+            mcp_params.pop("user_context")
+        if "token" in mcp_params:
+            mcp_params.pop("token")
 
-        if not auth_info:
-            raise HTTPException(status_code=403, detail="Invalid token. Token must be either a valid Supabase access token or Guepard token.")
-
-        # Create MCP request
         mcp_request = {
             "jsonrpc": "2.0",
             "id": mcp_req.id,
             "method": mcp_req.method,
-            "params": mcp_req.params
+            "params": mcp_params
         }
         
         # Run MCP server with the request
-        result = await run_mcp_request(mcp_request, final_token, auth_info)
+        result = await run_mcp_request(mcp_request, auth_info["token"], auth_info)
         
         return result
         
