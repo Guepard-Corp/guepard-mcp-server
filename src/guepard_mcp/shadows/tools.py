@@ -86,45 +86,41 @@ class CreateShadowTool(MCPTool):
                         "type": "string",
                         "description": "Deployment ID"
                     },
-                    "name": {
-                        "type": "string",
-                        "description": "Shadow name"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Shadow description"
-                    },
                     "snapshot_id": {
                         "type": "string",
                         "description": "Snapshot ID to create shadow from"
                     },
-                    "branch_id": {
+                    "repository_name": {
                         "type": "string",
-                        "description": "Branch ID to create shadow from"
+                        "description": "Repository name"
+                    },
+                    "branch_name": {
+                        "type": "string",
+                        "description": "Branch name"
+                    },
+                    "performance_profile_id": {
+                        "type": "string",
+                        "description": "Performance profile ID"
                     }
                 },
-                "required": ["deployment_id", "name", "snapshot_id"]
+                "required": ["deployment_id", "snapshot_id", "repository_name", "branch_name", "performance_profile_id"]
             }
         }
     
     async def execute(self, arguments: Dict[str, Any]) -> str:
         deployment_id = arguments.get("deployment_id")
-        name = arguments.get("name")
-        description = arguments.get("description")
         snapshot_id = arguments.get("snapshot_id")
-        branch_id = arguments.get("branch_id")
+        repository_name = arguments.get("repository_name")
+        branch_name = arguments.get("branch_name")
+        performance_profile_id = arguments.get("performance_profile_id")
         
         data = {
-            "name": name,
-            "snapshot_id": snapshot_id
+            "repository_name": repository_name,
+            "branch_name": branch_name,
+            "performance_profile_id": performance_profile_id
         }
         
-        if description:
-            data["description"] = description
-        if branch_id:
-            data["branch_id"] = branch_id
-        
-        result = await self.client._make_api_call("POST", f"/deploy/{deployment_id}/shadow", data=data)
+        result = await self.client._make_api_call("POST", f"/deploy/{deployment_id}/snapshot/{snapshot_id}/shadow", data=data)
         
         if result.get("error"):
             return format_error_response(
@@ -133,7 +129,7 @@ class CreateShadowTool(MCPTool):
             )
         
         return format_success_response(
-            f"Shadow '{name}' created successfully",
+            f"Shadow created successfully from snapshot {snapshot_id}",
             result
         )
 
