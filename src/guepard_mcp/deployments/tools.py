@@ -113,6 +113,10 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
                         "type": "string",
                         "description": "Performance profile ID. Use 'list_performance_profiles' tool to get available profile IDs, or leave empty to auto-select a default profile."
                     },
+                    "node_id": {
+                        "type": "string",
+                        "description": "Node ID to deploy to (optional)"
+                    },
                     "auto_subscribe": {
                         "type": "boolean",
                         "description": "Automatically subscribe to this deployment (default: true)",
@@ -273,6 +277,33 @@ class CreateDeploymentTool(AutoSubscribeMCPTool):
         }
         
         # Add optional fields if provided
+        if arguments.get("node_id"):
+            data["node_id"] = arguments.get("node_id")
+        else:
+            # Auto-select public node if node_id is not provided
+            try:
+                # Get accessible nodes
+                from ..nodes.tools import NodesModule
+                nodes_module = NodesModule(self.client)
+                nodes_result = await nodes_module.call_tool("list_accessible_nodes", {})
+                
+                # Parse nodes result
+                import json
+                if "Found" in nodes_result and "accessible nodes" in nodes_result:
+                    json_start = nodes_result.find('[')
+                    if json_start != -1:
+                        json_str = nodes_result[json_start:]
+                        nodes = json.loads(json_str)
+                        
+                        # Find public node
+                        public_node = next((node for node in nodes if node.get("node_type") == "public"), None)
+                        
+                        if public_node:
+                            data["node_id"] = public_node.get("id")
+            except Exception as e:
+                # Log error but continue without node_id (API might handle it or fail later)
+                pass
+        
         if arguments.get("deployment_parent"):
             data["deployment_parent"] = arguments.get("deployment_parent")
         if arguments.get("snapshot_parent"):

@@ -249,7 +249,7 @@ class GuepardMCPServer:
                     },
                     "serverInfo": {
                         "name": "guepard-complete",
-                        "version": "2.0.0"
+                        "version": "1.5.0"
                     }
                 }
             }

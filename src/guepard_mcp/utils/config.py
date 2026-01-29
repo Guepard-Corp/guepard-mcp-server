@@ -93,7 +93,7 @@ class ToolConfig:
 PREDEFINED_CONFIGS = {
     "v1": {
         "description": "Basic v1 - Essential deployment management tools only",
-        "enabled_modules": ["deployments", "compute", "performance", "image_providers", "checkouts", "snapshots", "branches", "subscriptions"],
+        "enabled_modules": ["deployments", "compute", "performance", "image_providers", "checkouts", "snapshots", "branches", "subscriptions", "nodes", "shadows"],
         "enabled_tools": [
             "test_connection",
             
@@ -122,7 +122,12 @@ PREDEFINED_CONFIGS = {
 
             "list_performance_profiles",
 
-            "list_image_providers"
+            "list_image_providers",
+
+            "list_accessible_nodes",
+
+            "list_shadows_for_deployment",
+            "create_shadow"
         ]
     },
     "minimal": {

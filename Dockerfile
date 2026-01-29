@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Set metadata
 LABEL maintainer="Guepard Team"
 LABEL description="Guepard MCP Server - Real API implementation"
-LABEL version="1.4.0"
+LABEL version="1.5.0"
 
 # Set workdir
 WORKDIR /app
