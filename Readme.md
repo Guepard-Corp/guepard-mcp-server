@@ -68,16 +68,22 @@ The MCP server provides comprehensive access to all Guepard APIs through organiz
 
 ### 🌿 Branches
 - **`list_branches`** - Get branches for deployment
-- **`create_branch`** - Create a new branch from snapshot
-- **`get_branch`** - Get branch details
+- **`create_branch_from_snapshot`** - Create a new branch from snapshot
 - **`update_branch`** - Update branch
+
+### 🔄 Checkouts
 - **`checkout_branch`** - Checkout to a specific snapshot
+- **`checkout_snapshot`** - Checkout to a random snapshot from deployment
 
 ### 📸 Snapshots
 - **`create_snapshot`** - Create a snapshot
 - **`list_snapshots_deployment`** - Get snapshots for deployment
 - **`list_snapshots_branch`** - Get snapshots for branch
-- **`create_bookmark`** - Create a bookmark
+
+### 🏗️ Shadows
+- **`list_shadows_for_deployment`** - List shadow deployments for a specific deployment
+- **`list_all_shadows`** - List all shadow deployments
+- **`create_shadow`** - Create a new shadow deployment from a snapshot
 
 ### 🖥️ Nodes
 - **`list_nodes`** - Get all nodes
@@ -88,13 +94,15 @@ The MCP server provides comprehensive access to all Guepard APIs through organiz
 - **`list_performance_profiles`** - Get all performance profiles
 - **`create_performance_profile`** - Create performance profile
 - **`update_performance_profile`** - Update performance profile
-- **`get_performance_profiles`** - Get available performance profile defaults
+- **`apply_performance_profile`** - Apply performance profile to deployment
 
 ### 💻 Compute
 - **`get_compute_status`** - Get compute status
+- **`get_compute`** - Get compute information
 - **`start_compute`** - Start compute for a deployment
 - **`stop_compute`** - Stop compute for a deployment
-- **`get_deployment_status`** - Get deployment status
+
+### 📊 Logs & Metrics
 - **`get_deployment_logs`** - Get deployment logs
 - **`get_deployment_metrics`** - Get deployment metrics
 
@@ -112,10 +120,13 @@ The MCP server provides comprehensive access to all Guepard APIs through organiz
 - **`generate_token`** - Generate new token
 - **`revoke_token`** - Revoke token
 
-### 📡 Notifications & Utilities
+### 📡 Notifications & Subscriptions
 - **`subscribe_deployment`** - Subscribe to deployment notifications
 - **`unsubscribe_deployment`** - Unsubscribe from deployment notifications
 - **`list_subscriptions`** - List all deployment subscriptions
+- **`manage_subscriptions`** - Manage multiple deployment subscriptions
+
+### 🛠️ Utilities
 - **`test_connection`** - Test connection to Guepard API
 - **`list_configurations`** - List available predefined configurations
 - **`get_configuration`** - Get current server configuration
@@ -229,6 +240,7 @@ guepard-mcp-server/
 │       ├── deployments/   # Deployment management
 │       ├── branches/       # Branch management
 │       ├── snapshots/      # Snapshot management
+│       ├── shadows/        # Shadow deployment management
 │       ├── nodes/          # Node management
 │       ├── performance/    # Performance profiles
 │       ├── compute/        # Compute management
@@ -295,16 +307,22 @@ docker run --rm -i -e ACCESS_TOKEN="your_token" -e DEBUG=true mghassen/guepard-c
 
 #### Branch Tools
 - **`list_branches`**: `deployment_id` (required)
-- **`create_branch`**: `deployment_id`, `branch_id`, `snapshot_id`, `branch_name` (all required)
-- **`get_branch`**: `branch_id` (required)
+- **`create_branch_from_snapshot`**: `deployment_id`, `branch_id`, `snapshot_id`, `branch_name` (all required), `is_ephemeral` (optional)
 - **`update_branch`**: `deployment_id`, `branch_id` (required), plus fields to update
+
+#### Checkout Tools
 - **`checkout_branch`**: `deployment_id`, `branch_id`, `snapshot_id` (all required)
+- **`checkout_snapshot`**: `deployment_id` (required), plus optional parameters
 
 #### Snapshot Tools
 - **`create_snapshot`**: `deployment_id`, `branch_id`, `snapshot_comment` (all required)
 - **`list_snapshots_deployment`**: `deployment_id` (required)
 - **`list_snapshots_branch`**: `deployment_id`, `branch_id` (both required)
-- **`create_bookmark`**: `deployment_id`, `branch_id`, `snapshot_comment` (all required)
+
+#### Shadow Tools
+- **`list_shadows_for_deployment`**: `deployment_id` (required)
+- **`list_all_shadows`**: No parameters
+- **`create_shadow`**: `deployment_id`, `snapshot_id`, `repository_name`, `branch_name`, `performance_profile_id` (all required)
 
 #### Node Tools
 - **`list_nodes`**: No parameters
@@ -315,15 +333,17 @@ docker run --rm -i -e ACCESS_TOKEN="your_token" -e DEBUG=true mghassen/guepard-c
 - **`list_performance_profiles`**: No parameters
 - **`create_performance_profile`**: `label_name`, `min_cpu`, `min_memory` (required), plus optional fields
 - **`update_performance_profile`**: `performance_profile_id` (required), plus fields to update
-- **`get_performance_profiles`**: No parameters
+- **`apply_performance_profile`**: `deployment_id`, `performance_profile_id` (both required)
 
 #### Compute Tools
 - **`get_compute_status`**: `deployment_id` (required)
+- **`get_compute`**: `deployment_id` (required)
 - **`start_compute`**: `deployment_id` (required), `notify` (optional)
 - **`stop_compute`**: `deployment_id` (required), `notify` (optional)
-- **`get_deployment_status`**: `deployment_id` (required)
-- **`get_deployment_logs`**: `deployment_id` (required), `lines` (optional)
-- **`get_deployment_metrics`**: `deployment_id` (required), `time_range` (optional)
+
+#### Logs & Metrics Tools
+- **`get_deployment_logs`**: `deployment_id` (required), `lines` (optional), `level` (optional), `component` (optional)
+- **`get_deployment_metrics`**: `deployment_id` (required), `time_range` (optional), `metric_type` (optional)
 
 #### Database User Tools
 - **`list_database_users`**: `deployment_id` (required)
@@ -339,13 +359,16 @@ docker run --rm -i -e ACCESS_TOKEN="your_token" -e DEBUG=true mghassen/guepard-c
 - **`generate_token`**: `name` (required), `expires_in` (optional)
 - **`revoke_token`**: `token_id` (required)
 
-#### Notification Tools
+#### Notification & Subscription Tools
 - **`subscribe_deployment`**: `deployment_id` (required)
 - **`unsubscribe_deployment`**: `deployment_id` (required)
 - **`list_subscriptions`**: No parameters
+- **`manage_subscriptions`**: `action` (required), `deployment_ids` (required)
 
 #### Utility Tools
 - **`test_connection`**: No parameters
+- **`list_configurations`**: No parameters
+- **`get_configuration`**: No parameters
 
 ## 🆘 Support
 
